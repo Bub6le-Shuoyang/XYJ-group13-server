@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>乡村驿站 - 管理后台</title>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <!-- Element Plus JS -->
+    <script src="https://unpkg.com/element-plus"></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f0f2f5; }
+        #app { height: 100%; display: flex; flex-direction: column; }
+        .el-container { height: 100%; }
+        .el-header { background-color: #fff; color: #333; line-height: 60px; display: flex; justify-content: space-between; border-bottom: 1px solid #ebeef5; box-shadow: 0 1px 4px rgba(0,21,41,.08); z-index: 10; padding: 0 20px;}
+        .el-aside { background-color: #001529; color: #fff; transition: width 0.3s; }
+        .el-main { background-color: #f0f2f5; padding: 20px; }
+        .logo { height: 60px; line-height: 60px; text-align: center; font-size: 20px; font-weight: bold; background: #002140; color: #fff; white-space: nowrap; overflow: hidden; }
+        .header-right { display: flex; align-items: center; cursor: pointer; }
+        .header-right .el-dropdown-link { display: flex; align-items: center; color: #333; }
+        .header-right .el-avatar { margin-right: 10px; }
+        .page-header { margin-bottom: 20px; font-size: 20px; font-weight: 500; }
+        
+        .el-menu-vertical { border-right: none; }
+        .el-menu-vertical:not(.el-menu--collapse) { width: 250px; }
+        
+        .stat-card { text-align: center; padding: 20px 0; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #1890ff; margin-top: 10px; }
+        
+        /* Utility */
+        .mb-20 { margin-bottom: 20px; }
+        .mr-10 { margin-right: 10px; }
+        .search-bar { background: #fff; padding: 18px; border-radius: 4px; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;}
+        .table-container { background: #fff; padding: 20px; border-radius: 4px; }
+        .pagination-container { margin-top: 20px; display: flex; justify-content: flex-end; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-container>
+        <!-- Sidebar -->
+        <el-aside width="250px">
+            <div class="logo">乡村驿站 Admin</div>
+            <el-menu
+                :default-active="activeMenu"
+                class="el-menu-vertical"
+                background-color="#001529"
+                text-color="#a6adb4"
+                active-text-color="#fff"
+                @select="handleSelectMenu"
+            >
+                <el-menu-item index="dashboard">
+                    <span>仪表盘</span>
+                </el-menu-item>
+                <el-menu-item index="users">
+                    <span>用户管理</span>
+                </el-menu-item>
+                <el-menu-item index="packages">
+                    <span>站点包裹管理</span>
+                </el-menu-item>
+                <el-menu-item index="news">
+                    <span>乡镇资讯管理</span>
+                </el-menu-item>
+            </el-menu>
+        </el-aside>
+
+        <!-- Main Content -->
+        <el-container>
+            <el-header>
+                <div class="header-left">
+                    <span style="font-size: 18px; font-weight: 500;">乡村物流数字化综合管理平台</span>
+                </div>
+                <div class="header-right">
+                    <el-dropdown @command="handleCommand">
+                        <span class="el-dropdown-link">
+                            <el-avatar size="small" :src="currentUser.avatar_url || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'"></el-avatar>
+                            {{ currentUser.nickname || currentUser.account || '管理员' }}
+                        </span>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-dropdown-item command="profile">个人信息</el-dropdown-item>
+                                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
+                </div>
+            </el-header>
+
+            <el-main>
+                <!-- News Management -->
+                <div v-if="activeMenu === 'news'">
+                    <div class="page-header">乡镇资讯管理</div>
+                    <div class="search-bar">
+                        <el-button type="primary" @click="loadNews">刷新</el-button>
+                        <el-button type="success" @click="openNewsDialog()">发布资讯</el-button>
+                    </div>
+                    <div class="table-container">
+                        <el-table :data="newsList" v-loading="loading.news" border style="width: 100%">
+                            <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                            <el-table-column prop="title" label="标题"></el-table-column>
+                            <el-table-column prop="tag" label="标签" width="120"></el-table-column>
+                            <el-table-column prop="is_urgent" label="是否紧急" width="100">
+                                <template #default="scope">
+                                    <el-tag :type="scope.row.is_urgent ? 'danger' : 'info'">{{ scope.row.is_urgent ? '紧急' : '普通' }}</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="view_count" label="浏览量" width="80"></el-table-column>
+                            <el-table-column prop="like_count" label="点赞数" width="80"></el-table-column>
+                            <el-table-column prop="created_at" label="发布时间" width="180">
+                                <template #default="scope">{{ formatDate(scope.row.created_at) }}</template>
+                            </el-table-column>
+                        </el-table>
+                        <div class="pagination-container">
+                            <el-pagination
+                                background
+                                layout="total, prev, pager, next"
+                                :total="newsTotal"
+                                :page-size="newsQuery.size"
+                                v-model:current-page="newsQuery.page"
+                                @current-change="loadNews"
+                            ></el-pagination>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard -->
+                <div v-if="activeMenu === 'dashboard'">
+                    <div class="page-header">仪表盘 / 站点统计</div>
+                    <el-row :gutter="20" class="mb-20">
+                        <el-col :span="6">
+                            <el-card shadow="hover" class="stat-card">
+                                <div>待入库包裹</div>
+                                <div class="stat-value">{{ stats.pending_inbound_count || 0 }}</div>
+                            </el-card>
+                        </el-col>
+                        <el-col :span="6">
+                            <el-card shadow="hover" class="stat-card">
+                                <div>当前在库包裹</div>
+                                <div class="stat-value" style="color: #52c41a;">{{ stats.in_stock_count || 0 }}</div>
+                            </el-card>
+                        </el-col>
+                        <el-col :span="6">
+                            <el-card shadow="hover" class="stat-card">
+                                <div>派送中包裹</div>
+                                <div class="stat-value" style="color: #faad14;">{{ stats.delivering_count || 0 }}</div>
+                            </el-card>
+                        </el-col>
+                        <el-col :span="6">
+                            <el-card shadow="hover" class="stat-card">
+                                <div>今日已出库</div>
+                                <div class="stat-value" style="color: #722ed1;">{{ stats.today_outbound || 0 }}</div>
+                            </el-card>
+                        </el-col>
+                    </el-row>
+                </div>
+
+                <!-- User Management -->
+                <div v-if="activeMenu === 'users'">
+                    <div class="page-header">用户管理</div>
+                    <div class="search-bar">
+                        <el-input v-model="userQuery.keyword" placeholder="搜索账号/手机号/昵称" style="width: 250px;" clearable @clear="loadUsers"></el-input>
+                        <el-button type="primary" @click="loadUsers">搜索</el-button>
+                        <el-button type="success" @click="openUserDialog()">新增用户</el-button>
+                    </div>
+                    <div class="table-container">
+                        <el-table :data="userList" v-loading="loading.users" border style="width: 100%">
+                            <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                            <el-table-column prop="user_no" label="用户编号" width="150"></el-table-column>
+                            <el-table-column prop="account" label="登录账号" width="120"></el-table-column>
+                            <el-table-column prop="nickname" label="昵称/姓名" width="120"></el-table-column>
+                            <el-table-column prop="phone" label="手机号" width="120"></el-table-column>
+                            <el-table-column prop="role" label="角色" width="100">
+                                <template #default="scope">
+                                    <el-tag :type="scope.row.role === 'ADMIN' ? 'danger' : (scope.row.role === 'COURIER' ? 'warning' : 'success')">
+                                        {{ scope.row.role }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="created_at" label="创建时间" width="180">
+                                <template #default="scope">
+                                    {{ formatDate(scope.row.created_at) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" fixed="right" width="150">
+                                <template #default="scope">
+                                    <el-button size="small" type="primary" link @click="openUserDialog(scope.row)">编辑</el-button>
+                                    <el-popconfirm title="确定要删除该用户吗？" @confirm="deleteUser(scope.row.id)">
+                                        <template #reference>
+                                            <el-button size="small" type="danger" link>删除</el-button>
+                                        </template>
+                                    </el-popconfirm>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <div class="pagination-container">
+                            <el-pagination
+                                background
+                                layout="total, prev, pager, next"
+                                :total="userTotal"
+                                :page-size="userQuery.size"
+                                v-model:current-page="userQuery.page"
+                                @current-change="loadUsers"
+                            ></el-pagination>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Package Management -->
+                <div v-if="activeMenu === 'packages'">
+                    <div class="page-header">站点包裹管理</div>
+                    <div class="search-bar">
+                        <el-select v-model="packageQuery.status" placeholder="包裹状态" style="width: 150px;" clearable @change="loadPackages">
+                            <el-option label="待入库" value="PENDING_INBOUND"></el-option>
+                            <el-option label="在库中" value="IN_STOCK"></el-option>
+                            <el-option label="已发布任务" value="TASK_PUBLISHED"></el-option>
+                            <el-option label="派送中" value="DELIVERING"></el-option>
+                            <el-option label="已完成" value="COMPLETED"></el-option>
+                        </el-select>
+                        <el-button type="primary" @click="loadPackages">刷新</el-button>
+                    </div>
+                    <div class="table-container">
+                        <el-table :data="packageList" v-loading="loading.packages" border style="width: 100%">
+                            <el-table-column prop="package_id" label="包裹单号" width="120"></el-table-column>
+                            <el-table-column prop="name" label="物品名称" width="120"></el-table-column>
+                            <el-table-column prop="receiver_name" label="收件人" width="100"></el-table-column>
+                            <el-table-column prop="receiver_phone" label="联系电话" width="120"></el-table-column>
+                            <el-table-column prop="address" label="配送地址" show-overflow-tooltip></el-table-column>
+                            <el-table-column prop="status" label="状态" width="120">
+                                <template #default="scope">
+                                    <el-tag :type="getPackageStatusType(scope.row.status)">
+                                        {{ scope.row.status }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" fixed="right" width="200">
+                                <template #default="scope">
+                                    <el-button v-if="scope.row.status === 'PENDING_INBOUND'" size="small" type="success" link @click="openInboundDialog(scope.row)">入库</el-button>
+                                    <el-button v-if="scope.row.status === 'IN_STOCK'" size="small" type="primary" link @click="openPublishDialog(scope.row)">发布任务</el-button>
+                                    <el-popconfirm v-if="scope.row.status === 'IN_STOCK'" title="确认直接将该包裹出库吗？" @confirm="outboundPackage(scope.row.package_id)">
+                                        <template #reference>
+                                            <el-button size="small" type="warning" link>直接出库</el-button>
+                                        </template>
+                                    </el-popconfirm>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <div class="pagination-container">
+                            <el-pagination
+                                background
+                                layout="total, prev, pager, next"
+                                :total="packageTotal"
+                                :page-size="packageQuery.size"
+                                v-model:current-page="packageQuery.page"
+                                @current-change="loadPackages"
+                            ></el-pagination>
+                        </div>
+                    </div>
+                </div>
+            </el-main>
+        </el-container>
+    </el-container>
+
+    <!-- User Dialog -->
+    <el-dialog :title="userForm.id ? '编辑用户' : '新增用户'" v-model="dialogVisible.user" width="500px">
+        <el-form :model="userForm" label-width="80px">
+            <el-form-item label="登录账号" required>
+                <el-input v-model="userForm.account" :disabled="!!userForm.id"></el-input>
+            </el-form-item>
+            <el-form-item label="密码" :required="!userForm.id">
+                <el-input v-model="userForm.password" type="password" placeholder="为空则不修改"></el-input>
+            </el-form-item>
+            <el-form-item label="昵称">
+                <el-input v-model="userForm.nickname"></el-input>
+            </el-form-item>
+            <el-form-item label="手机号">
+                <el-input v-model="userForm.phone"></el-input>
+            </el-form-item>
+            <el-form-item label="角色" required>
+                <el-select v-model="userForm.role" style="width: 100%;">
+                    <el-option label="普通用户" value="VILLAGER"></el-option>
+                    <el-option label="骑手" value="COURIER"></el-option>
+                    <el-option label="管理员" value="ADMIN"></el-option>
+                </el-select>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="dialogVisible.user = false">取 消</el-button>
+                <el-button type="primary" @click="submitUserForm" :loading="loading.submit">确 定</el-button>
+            </span>
+        </template>
+    </el-dialog>
+
+    <!-- Inbound Dialog -->
+    <el-dialog title="包裹入库" v-model="dialogVisible.inbound" width="400px">
+        <el-form :model="inboundForm" label-width="80px">
+            <el-form-item label="包裹单号">
+                <span>{{ inboundForm.packageId }}</span>
+            </el-form-item>
+            <el-form-item label="存放货架" required>
+                <el-input v-model="inboundForm.shelfNumber" placeholder="例如: A-01-03"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="dialogVisible.inbound = false">取 消</el-button>
+                <el-button type="primary" @click="submitInbound" :loading="loading.submit">确 定</el-button>
+            </span>
+        </template>
+    </el-dialog>
+
+    <!-- Publish Task Dialog -->
+    <el-dialog title="发布配送任务" v-model="dialogVisible.publish" width="400px">
+        <el-form :model="publishForm" label-width="80px">
+            <el-form-item label="包裹单号">
+                <span>{{ publishForm.packageId }}</span>
+            </el-form-item>
+            <el-form-item label="配送赏金" required>
+                <el-input-number v-model="publishForm.rewardAmount" :precision="2" :step="1" :min="0"></el-input-number>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="dialogVisible.publish = false">取 消</el-button>
+                <el-button type="primary" @click="submitPublish" :loading="loading.submit">发 布</el-button>
+            </span>
+        </template>
+    </el-dialog>
+
+    <!-- News Dialog -->
+    <el-dialog title="发布乡镇资讯" v-model="dialogVisible.news" width="500px">
+        <el-form :model="newsForm" label-width="80px">
+            <el-form-item label="标题" required>
+                <el-input v-model="newsForm.title"></el-input>
+            </el-form-item>
+            <el-form-item label="标签">
+                <el-input v-model="newsForm.tag" placeholder="如：驿站动态"></el-input>
+            </el-form-item>
+            <el-form-item label="紧急通知">
+                <el-switch v-model="newsForm.is_urgent"></el-switch>
+            </el-form-item>
+            <el-form-item label="内容" required>
+                <el-input type="textarea" v-model="newsForm.content" rows="4"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="dialogVisible.news = false">取 消</el-button>
+                <el-button type="primary" @click="submitNews" :loading="loading.submit">发 布</el-button>
+            </span>
+        </template>
+    </el-dialog>
+
+    <!-- Profile Dialog -->
+    <el-dialog title="个人信息" v-model="dialogVisible.profile" width="400px">
+        <el-form :model="profileForm" label-width="80px" v-loading="loading.profile">
+            <el-form-item label="账号">
+                <el-input v-model="profileForm.username" disabled></el-input>
+            </el-form-item>
+            <el-form-item label="姓名">
+                <el-input v-model="profileForm.realName"></el-input>
+            </el-form-item>
+            <el-form-item label="手机号">
+                <el-input v-model="profileForm.phone"></el-input>
+            </el-form-item>
+            <el-form-item label="头像URL">
+                <el-input v-model="profileForm.avatarUrl"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="dialogVisible.profile = false">取 消</el-button>
+                <el-button type="primary" @click="submitProfile" :loading="loading.submit">保 存</el-button>
+            </span>
+        </template>
+    </el-dialog>
+
+</div>
+
+<script>
+    const { createApp, ref, reactive, onMounted } = Vue;
+    const { ElMessage } = ElementPlus;
+
+    const app = createApp({
+        setup() {
+            // Auth Check
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/admin/login';
+            }
+
+            const currentUser = ref(JSON.parse(localStorage.getItem('user') || '{}'));
+            const activeMenu = ref('dashboard');
+            
+            const req = (url, options = {}) => {
+                const headers = {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
+                return fetch(url, { ...options, headers }).then(res => res.json()).then(res => {
+                    if (res.code === 401) {
+                        ElMessage.error('登录已过期，请重新登录');
+                        localStorage.clear();
+                        window.location.href = '/admin/login';
+                        throw new Error('Unauthorized');
+                    }
+                    if (res.code !== 200) {
+                        ElMessage.error(res.message || '请求失败');
+                        throw new Error(res.message);
+                    }
+                    return res.data;
+                });
+            };
+
+            // Dashboard
+            const stats = ref({});
+            const loadStats = () => {
+                req('/api/v1/admin/station/statistics').then(data => {
+                    stats.value = data;
+                }).catch(console.error);
+            };
+
+            // Users
+            const userList = ref([]);
+            const userTotal = ref(0);
+            const userQuery = reactive({ page: 1, size: 10, keyword: '' });
+            const loading = reactive({ users: false, packages: false, news: false, profile: false, submit: false });
+            
+            const loadUsers = () => {
+                loading.users = true;
+                let url = `/api/v1/admin/users?page=${userQuery.page}&size=${userQuery.size}`;
+                if (userQuery.keyword) url += `&keyword=${encodeURIComponent(userQuery.keyword)}`;
+                req(url).then(data => {
+                    userList.value = data.records || [];
+                    userTotal.value = data.total || 0;
+                }).finally(() => { loading.users = false; });
+            };
+
+            const dialogVisible = reactive({ user: false, inbound: false, publish: false, news: false, profile: false });
+            const userForm = reactive({ id: null, account: '', password: '', nickname: '', phone: '', role: 'VILLAGER' });
+
+            const openUserDialog = (row) => {
+                if (row) {
+                    Object.assign(userForm, { id: row.id, account: row.account, password: '', nickname: row.nickname, phone: row.phone, role: row.role });
+                } else {
+                    Object.assign(userForm, { id: null, account: '', password: '', nickname: '', phone: '', role: 'VILLAGER' });
+                }
+                dialogVisible.user = true;
+            };
+
+            const submitUserForm = () => {
+                if (!userForm.account || (!userForm.id && !userForm.password)) {
+                    ElMessage.warning('请填写必填项');
+                    return;
+                }
+                loading.submit = true;
+                const url = userForm.id ? `/api/v1/admin/users/${userForm.id}` : '/api/v1/admin/users';
+                const method = userForm.id ? 'PUT' : 'POST';
+                req(url, { method, body: JSON.stringify(userForm) }).then(() => {
+                    ElMessage.success(userForm.id ? '更新成功' : '创建成功');
+                    dialogVisible.user = false;
+                    loadUsers();
+                }).finally(() => { loading.submit = false; });
+            };
+
+            const deleteUser = (id) => {
+                req(`/api/v1/admin/users/${id}`, { method: 'DELETE' }).then(() => {
+                    ElMessage.success('删除成功');
+                    loadUsers();
+                });
+            };
+
+            // Packages
+            const packageList = ref([]);
+            const packageTotal = ref(0);
+            const packageQuery = reactive({ page: 1, size: 10, status: 'IN_STOCK' });
+            
+            const loadPackages = () => {
+                loading.packages = true;
+                let url = `/api/v1/admin/packages?page=${packageQuery.page}&size=${packageQuery.size}`;
+                if (packageQuery.status) url += `&status=${packageQuery.status}`;
+                req(url).then(data => {
+                    packageList.value = data.records || [];
+                    packageTotal.value = data.total || 0;
+                }).finally(() => { loading.packages = false; });
+            };
+
+            const getPackageStatusType = (status) => {
+                const map = { 'PENDING_INBOUND': 'info', 'IN_STOCK': 'success', 'TASK_PUBLISHED': 'warning', 'DELIVERING': 'primary', 'COMPLETED': 'success' };
+                return map[status] || 'info';
+            };
+
+            // Inbound
+            const inboundForm = reactive({ packageId: '', shelfNumber: '' });
+            const openInboundDialog = (row) => {
+                inboundForm.packageId = row.package_id;
+                inboundForm.shelfNumber = '';
+                dialogVisible.inbound = true;
+            };
+            const submitInbound = () => {
+                if (!inboundForm.shelfNumber) return ElMessage.warning('请填写货架号');
+                loading.submit = true;
+                req(`/api/v1/admin/packages/${inboundForm.packageId}/inbound`, {
+                    method: 'POST',
+                    body: JSON.stringify({ shelf_number: inboundForm.shelfNumber })
+                }).then(() => {
+                    ElMessage.success('入库成功');
+                    dialogVisible.inbound = false;
+                    loadPackages();
+                    loadStats();
+                }).finally(() => { loading.submit = false; });
+            };
+
+            // Outbound
+            const outboundPackage = (packageId) => {
+                req(`/api/v1/admin/packages/${packageId}/outbound`, { method: 'POST' }).then(() => {
+                    ElMessage.success('出库成功');
+                    loadPackages();
+                    loadStats();
+                });
+            };
+
+            // Publish Task
+            const publishForm = reactive({ packageId: '', rewardAmount: 5.0 });
+            const openPublishDialog = (row) => {
+                publishForm.packageId = row.package_id;
+                publishForm.rewardAmount = 5.0;
+                dialogVisible.publish = true;
+            };
+            const submitPublish = () => {
+                loading.submit = true;
+                req(`/api/v1/admin/tasks`, {
+                    method: 'POST',
+                    body: JSON.stringify({ package_id: publishForm.packageId, reward_amount: publishForm.rewardAmount })
+                }).then(() => {
+                    ElMessage.success('任务发布成功');
+                    dialogVisible.publish = false;
+                    loadPackages();
+                    loadStats();
+                }).finally(() => { loading.submit = false; });
+            };
+
+            // News Management
+            const newsList = ref([]);
+            const newsTotal = ref(0);
+            const newsQuery = reactive({ page: 1, size: 10 });
+            const newsForm = reactive({ title: '', content: '', tag: '', is_urgent: false });
+
+            const loadNews = () => {
+                loading.news = true;
+                req(`/api/v1/content/news?page=${newsQuery.page}&size=${newsQuery.size}`).then(data => {
+                    newsList.value = data.records || [];
+                    newsTotal.value = data.total || 0;
+                }).finally(() => { loading.news = false; });
+            };
+
+            const openNewsDialog = () => {
+                Object.assign(newsForm, { title: '', content: '', tag: '', is_urgent: false });
+                dialogVisible.news = true;
+            };
+
+            const submitNews = () => {
+                if (!newsForm.title || !newsForm.content) return ElMessage.warning('请填写必填项');
+                loading.submit = true;
+                req(`/api/v1/content/news`, {
+                    method: 'POST',
+                    body: JSON.stringify(newsForm)
+                }).then(() => {
+                    ElMessage.success('发布成功');
+                    dialogVisible.news = false;
+                    loadNews();
+                }).finally(() => { loading.submit = false; });
+            };
+
+            // Profile Management
+            const profileForm = reactive({ username: '', realName: '', phone: '', avatarUrl: '' });
+
+            const openProfileDialog = () => {
+                dialogVisible.profile = true;
+                loading.profile = true;
+                req(`/api/v1/admin/profile`).then(data => {
+                    Object.assign(profileForm, data);
+                }).finally(() => { loading.profile = false; });
+            };
+
+            const submitProfile = () => {
+                loading.submit = true;
+                req(`/api/v1/admin/profile`, {
+                    method: 'PUT',
+                    body: JSON.stringify(profileForm)
+                }).then(() => {
+                    ElMessage.success('保存成功');
+                    dialogVisible.profile = false;
+                    currentUser.value.nickname = profileForm.realName || profileForm.username;
+                    currentUser.value.avatar_url = profileForm.avatarUrl;
+                    localStorage.setItem('user', JSON.stringify(currentUser.value));
+                }).finally(() => { loading.submit = false; });
+            };
+
+            const handleSelectMenu = (index) => {
+                activeMenu.value = index;
+                if (index === 'dashboard') loadStats();
+                if (index === 'users') loadUsers();
+                if (index === 'packages') loadPackages();
+                if (index === 'news') loadNews();
+            };
+
+            const handleCommand = (cmd) => {
+                if (cmd === 'logout') {
+                    req('/api/v1/auth/logout', { method: 'POST' }).finally(() => {
+                        localStorage.clear();
+                        window.location.href = '/admin/login';
+                    });
+                } else if (cmd === 'profile') {
+                    openProfileDialog();
+                }
+            };
+
+            const formatDate = (dateStr) => {
+                if (!dateStr) return '-';
+                const d = new Date(dateStr);
+                return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+            };
+
+            onMounted(() => {
+                loadStats();
+            });
+
+            return {
+                currentUser, activeMenu, stats, handleSelectMenu, handleCommand, formatDate,
+                userList, userTotal, userQuery, loadUsers, deleteUser, openUserDialog, submitUserForm, userForm,
+                packageList, packageTotal, packageQuery, loadPackages, getPackageStatusType,
+                dialogVisible, loading,
+                inboundForm, openInboundDialog, submitInbound,
+                outboundPackage,
+                publishForm, openPublishDialog, submitPublish,
+                newsList, newsTotal, newsQuery, loadNews, newsForm, openNewsDialog, submitNews,
+                profileForm, openProfileDialog, submitProfile
+            };
+        }
+    });
+    app.use(ElementPlus);
+    app.mount('#app');
+</script>
+</body>
+</html>

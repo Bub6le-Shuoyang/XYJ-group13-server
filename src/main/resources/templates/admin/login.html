@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>乡村驿站 - 后台登录</title>
+    <!-- Import Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Import Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <!-- Import Element Plus JS -->
+    <script src="https://unpkg.com/element-plus"></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; background-color: #f0f2f5; background-image: url('https://gw.alipayobjects.com/zos/rmsportal/TVYTbAXzhhnHRepQyqVcuJw.svg'); background-repeat: no-repeat; background-position: center 110px; background-size: 100%; }
+        #app { height: 100%; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .login-container { width: 360px; background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 100px; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .header img { height: 44px; margin-bottom: 10px; }
+        .header h1 { font-size: 24px; color: #333; margin: 0; font-weight: 600; }
+        .header p { font-size: 14px; color: #999; margin-top: 10px; }
+        .login-btn { width: 100%; margin-top: 10px; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="login-container">
+        <div class="header">
+            <h1>乡村驿站 Admin</h1>
+            <p>乡村物流数字化综合管理平台</p>
+        </div>
+        <el-form :model="loginForm" :rules="rules" ref="loginFormRef" @keyup.enter="handleLogin">
+            <el-form-item prop="account">
+                <el-input v-model="loginForm.account" placeholder="请输入管理员账号或邮箱" size="large">
+                    <template #prefix>
+                        <el-icon><User /></el-icon>
+                    </template>
+                </el-input>
+            </el-form-item>
+            <el-form-item prop="password">
+                <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" size="large" show-password>
+                    <template #prefix>
+                        <el-icon><Lock /></el-icon>
+                    </template>
+                </el-input>
+            </el-form-item>
+            <el-form-item prop="role">
+                <el-select v-model="loginForm.role" placeholder="请选择角色" size="large" style="width: 100%;">
+                    <el-option label="管理员 (ADMIN)" value="ADMIN"></el-option>
+                    <el-option label="村民 (VILLAGER)" value="VILLAGER"></el-option>
+                    <el-option label="骑手 (COURIER)" value="COURIER"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" class="login-btn" size="large" :loading="loading" @click="handleLogin">登 录</el-button>
+            </el-form-item>
+        </el-form>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, reactive } = Vue;
+    const { ElMessage } = ElementPlus;
+    // Import Icons manually if needed or assume some icons are available. We'll use simple text if icons fail.
+    
+    const app = createApp({
+        setup() {
+            const loginFormRef = ref(null);
+            const loading = ref(false);
+            const loginForm = reactive({
+                account: 'admin@example.com',
+                password: 'MyPass123!',
+                role: 'ADMIN'
+            });
+            const rules = {
+                account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+                password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+                role: [{ required: true, message: '请选择角色', trigger: 'change' }]
+            };
+
+            const handleLogin = () => {
+                loginFormRef.value.validate((valid) => {
+                    if (valid) {
+                        loading.value = true;
+                        fetch('/api/v1/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(loginForm)
+                        })
+                        .then(res => res.json())
+                        .then(res => {
+                            loading.value = false;
+                            if (res.code === 200) {
+                                localStorage.setItem('token', res.data.token);
+                                localStorage.setItem('refreshToken', res.data.refresh_token);
+                                localStorage.setItem('user', JSON.stringify(res.data.user));
+                                ElMessage.success('登录成功');
+                                setTimeout(() => {
+                                    window.location.href = '/admin/index';
+                                }, 500);
+                            } else {
+                                ElMessage.error(res.message || '登录失败');
+                            }
+                        })
+                        .catch(err => {
+                            loading.value = false;
+                            console.error(err);
+                            ElMessage.error('网络错误，请稍后再试');
+                        });
+                    }
+                });
+            };
+
+            return {
+                loginFormRef,
+                loginForm,
+                rules,
+                loading,
+                handleLogin
+            };
+        }
+    });
+    app.use(ElementPlus);
+    app.mount('#app');
+</script>
+</body>
+</html>
