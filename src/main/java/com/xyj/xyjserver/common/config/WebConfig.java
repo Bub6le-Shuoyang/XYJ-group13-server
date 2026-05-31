@@ -2,17 +2,27 @@ package com.xyj.xyjserver.common.config;
 
 import com.xyj.xyjserver.common.interceptor.AuthInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.io.File;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
     @Autowired
     private AuthInterceptor authInterceptor;
+
+    @Value("${xyj.upload.path:uploads/}")
+    private String uploadPath;
+
+    @Value("${xyj.upload.url-prefix:/uploads/}")
+    private String urlPrefix;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -29,6 +39,24 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v1/admin/auth/send-email-code",
                         "/api/v1/admin/auth/register"
                 );
+    }
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // 配置本地文件上传的静态资源映射
+        String absolutePath = new File(uploadPath).getAbsolutePath();
+        if (!absolutePath.endsWith(File.separator)) {
+            absolutePath += File.separator;
+        }
+        
+        // 如果 urlPrefix 没有以 / 结尾，加上 /
+        String mappedUrl = urlPrefix;
+        if (!mappedUrl.endsWith("/")) {
+            mappedUrl += "/";
+        }
+        
+        registry.addResourceHandler(mappedUrl + "**")
+                .addResourceLocations("file:" + absolutePath);
     }
 
     @Override
