@@ -17,6 +17,7 @@ import com.xyj.xyjserver.entity.User;
 import com.xyj.xyjserver.mapper.AdminMapper;
 import com.xyj.xyjserver.mapper.CourierMapper;
 import com.xyj.xyjserver.mapper.EmailCodeMapper;
+import com.xyj.xyjserver.mapper.StationMapper;
 import com.xyj.xyjserver.mapper.UserMapper;
 import com.xyj.xyjserver.service.AuthService;
 import com.xyj.xyjserver.vo.CaptchaResponseVO;
@@ -45,6 +46,9 @@ public class AuthServiceImpl implements AuthService {
     private CourierMapper courierMapper;
     @Autowired
     private EmailCodeMapper emailCodeMapper;
+
+    @Autowired
+    private StationMapper stationMapper;
     
     @Autowired
     private JavaMailSender mailSender;
@@ -141,6 +145,7 @@ public class AuthServiceImpl implements AuthService {
                 admin.setEmail(registerDTO.getEmail());
                 admin.setPasswordHash(passwordHash);
                 admin.setRole(1); // 默认普通管理员
+                admin.setStationId(getDefaultStationId());
                 admin.setStatus(1); // 正常状态
                 adminMapper.insert(admin);
                 userId = admin.getId();
@@ -171,6 +176,7 @@ public class AuthServiceImpl implements AuthService {
                 courier.setAccount(registerDTO.getEmail()); // 骑手登录账号用邮箱
                 courier.setPasswordHash(passwordHash);
                 courier.setName("骑手_" + registerDTO.getEmail().split("@")[0]); // 默认名字
+                courier.setStationId(getDefaultStationId());
                 courier.setStatus(1);
                 courierMapper.insert(courier);
                 userId = courier.getId();
@@ -275,6 +281,14 @@ public class AuthServiceImpl implements AuthService {
         response.setExpiresIn(JwtUtil.EXPIRATION_TIME / 1000);
         response.setUser(userVO);
         return response;
+    }
+
+    private Long getDefaultStationId() {
+        Long stationId = stationMapper.findDefaultCampusStationId();
+        if (stationId == null) {
+            throw new BusinessException(ResultCode.FAILED, "默认站点未配置，请先初始化站点信息");
+        }
+        return stationId;
     }
 
     private UserVO getCurrentUserByRoleAndId(Long userId, String role) {

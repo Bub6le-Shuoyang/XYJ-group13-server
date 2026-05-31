@@ -2,6 +2,8 @@ package com.xyj.xyjserver.controller;
 
 import com.xyj.xyjserver.common.api.PageResult;
 import com.xyj.xyjserver.common.api.Result;
+import com.xyj.xyjserver.common.api.ResultCode;
+import com.xyj.xyjserver.common.exception.BusinessException;
 import com.xyj.xyjserver.common.interceptor.AuthInterceptor;
 import com.xyj.xyjserver.dto.DeliverDTO;
 import com.xyj.xyjserver.dto.VerifyPickupCodeDTO;
@@ -34,6 +36,7 @@ public class CourierController {
             @RequestParam(defaultValue = "1") Long page,
             @RequestParam(defaultValue = "10") Long size) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(courierService.getAvailableTasks(courierId, page, size));
     }
 
@@ -48,6 +51,7 @@ public class CourierController {
             @RequestParam(defaultValue = "1") Long page,
             @RequestParam(defaultValue = "10") Long size) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(courierService.getMyTasks(courierId, status, page, size));
     }
 
@@ -60,6 +64,7 @@ public class CourierController {
             HttpServletRequest request,
             @PathVariable("task_id") String taskId) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(courierService.grabTask(courierId, taskId));
     }
 
@@ -72,6 +77,7 @@ public class CourierController {
             HttpServletRequest request,
             @PathVariable("task_id") String taskId) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(courierService.pickupTask(courierId, taskId));
     }
 
@@ -85,6 +91,7 @@ public class CourierController {
             @PathVariable("task_id") String taskId,
             @Validated @RequestBody DeliverDTO deliverDTO) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(courierService.deliverTask(courierId, taskId, deliverDTO));
     }
 
@@ -98,6 +105,7 @@ public class CourierController {
             @PathVariable("task_id") String taskId,
             @Validated @RequestBody VerifyPickupCodeDTO verifyDTO) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(courierService.verifyPickupCode(courierId, taskId, verifyDTO));
     }
 
@@ -108,6 +116,7 @@ public class CourierController {
     @GetMapping("/earnings")
     public Result<EarningsVO> getEarnings(HttpServletRequest request) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(courierService.getEarnings(courierId));
     }
 
@@ -118,6 +127,14 @@ public class CourierController {
     @GetMapping("/profile")
     public Result<CourierProfileVO> getProfile(HttpServletRequest request) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(courierService.getProfile(courierId));
+    }
+
+    private void requireRole(HttpServletRequest request) {
+        String role = (String) request.getAttribute(AuthInterceptor.USER_ROLE_ATTR);
+        if (!"COURIER".equals(role)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "当前角色无权访问配送员接口");
+        }
     }
 }

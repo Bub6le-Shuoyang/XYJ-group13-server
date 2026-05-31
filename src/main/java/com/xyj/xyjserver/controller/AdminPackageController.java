@@ -2,7 +2,10 @@ package com.xyj.xyjserver.controller;
 
 import com.xyj.xyjserver.common.api.PageResult;
 import com.xyj.xyjserver.common.api.Result;
+import com.xyj.xyjserver.common.api.ResultCode;
+import com.xyj.xyjserver.common.exception.BusinessException;
 import com.xyj.xyjserver.common.interceptor.AuthInterceptor;
+import com.xyj.xyjserver.dto.PackageApproveDTO;
 import com.xyj.xyjserver.dto.PackageInboundDTO;
 import com.xyj.xyjserver.dto.TaskPublishDTO;
 import com.xyj.xyjserver.service.AdminPackageService;
@@ -35,7 +38,26 @@ public class AdminPackageController {
             @RequestParam(defaultValue = "1") Long page,
             @RequestParam(defaultValue = "100") Long size) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(adminPackageService.getStationPackages(adminId, status, page, size));
+    }
+
+    /**
+     * 审批通过用户提交的包裹，并发布配送任务
+     */
+    @Operation(summary = "审批通过包裹并发布配送任务")
+    @PostMapping("/packages/{package_id}/approve")
+    public Result<TaskVO> approvePackage(
+            HttpServletRequest request,
+            @PathVariable("package_id") String packageId,
+            @RequestBody(required = false) PackageApproveDTO approveDTO) {
+        Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
+        return Result.success(adminPackageService.approvePackage(
+                adminId,
+                packageId,
+                approveDTO == null ? new PackageApproveDTO() : approveDTO
+        ));
     }
 
     /**
@@ -48,6 +70,7 @@ public class AdminPackageController {
             @PathVariable("package_id") String packageId,
             @Validated @RequestBody PackageInboundDTO inboundDTO) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(adminPackageService.inboundPackage(adminId, packageId, inboundDTO));
     }
 
@@ -60,6 +83,7 @@ public class AdminPackageController {
             HttpServletRequest request,
             @PathVariable("package_id") String packageId) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(adminPackageService.outboundPackage(adminId, packageId));
     }
 
@@ -72,6 +96,7 @@ public class AdminPackageController {
             HttpServletRequest request,
             @Validated @RequestBody TaskPublishDTO publishDTO) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(adminPackageService.publishTask(adminId, publishDTO));
     }
 
@@ -82,6 +107,14 @@ public class AdminPackageController {
     @GetMapping("/station/statistics")
     public Result<StationStatisticsVO> getStationStatistics(HttpServletRequest request) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request);
         return Result.success(adminPackageService.getStationStatistics(adminId));
+    }
+
+    private void requireRole(HttpServletRequest request) {
+        String role = (String) request.getAttribute(AuthInterceptor.USER_ROLE_ATTR);
+        if (!"ADMIN".equals(role)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "当前角色无权访问管理员接口");
+        }
     }
 }

@@ -8,7 +8,7 @@ import com.xyj.xyjserver.vo.NewsPostVO;
 
 public interface ContentService {
     PageResult<NewsPostVO> getNews(Long page, Long size);
-    NewsPostVO publishNews(Long userId, NewsPostDTO postDTO);
+    NewsPostVO publishNews(Long userId, String role, NewsPostDTO postDTO);
     Boolean likeNews(Long userId, Long newsId);
     CommentVO commentNews(Long userId, Long newsId, CommentDTO commentDTO);
 }

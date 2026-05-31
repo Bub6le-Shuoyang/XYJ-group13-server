@@ -18,7 +18,7 @@ public interface AdminMapper {
     @Update("UPDATE admins SET password_hash = #{passwordHash} WHERE email = #{email}")
     int updatePasswordByEmail(@Param("email") String email, @Param("passwordHash") String passwordHash);
 
-    @org.apache.ibatis.annotations.Insert("INSERT INTO admins(username, email, password_hash, role, status) VALUES(#{username}, #{email}, #{passwordHash}, #{role}, #{status})")
+    @org.apache.ibatis.annotations.Insert("INSERT INTO admins(username, email, password_hash, role, station_id, status) VALUES(#{username}, #{email}, #{passwordHash}, #{role}, #{stationId}, #{status})")
     @org.apache.ibatis.annotations.Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Admin admin);
 

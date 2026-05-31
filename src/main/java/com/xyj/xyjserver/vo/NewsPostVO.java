@@ -10,6 +10,12 @@ public class NewsPostVO {
     private String title;
     private String content;
     private String tag;
+
+    @JsonProperty("author_name")
+    private String authorName;
+
+    @JsonProperty("station_name")
+    private String stationName;
     
     @JsonProperty("is_urgent")
     private Boolean isUrgent;
