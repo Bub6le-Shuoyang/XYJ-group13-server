@@ -1,18 +1,40 @@
 package com.xyj.xyjserver.service.impl;
 
 import com.xyj.xyjserver.common.api.PageResult;
+import com.xyj.xyjserver.common.api.ResultCode;
+import com.xyj.xyjserver.common.exception.BusinessException;
 import com.xyj.xyjserver.dto.AddressDTO;
+import com.xyj.xyjserver.entity.MallItem;
+import com.xyj.xyjserver.entity.MallRedeemRecord;
+import com.xyj.xyjserver.entity.UserPointsAccount;
+import com.xyj.xyjserver.mapper.MallItemMapper;
+import com.xyj.xyjserver.mapper.MallRedeemRecordMapper;
+import com.xyj.xyjserver.mapper.UserPointsAccountMapper;
 import com.xyj.xyjserver.service.UserProfileService;
 import com.xyj.xyjserver.vo.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class UserProfileServiceImpl implements UserProfileService {
+
+    @Autowired
+    private MallItemMapper mallItemMapper;
+
+    @Autowired
+    private MallRedeemRecordMapper mallRedeemRecordMapper;
+
+    @Autowired
+    private UserPointsAccountMapper userPointsAccountMapper;
 
     @Override
     public UserProfileVO getUserProfile(Long userId) {
@@ -76,35 +98,98 @@ public class UserProfileServiceImpl implements UserProfileService {
 
     @Override
     public PageResult<MallItemVO> getMallItems(Long page, Long size) {
-        MallItemVO vo = new MallItemVO();
-        vo.setId(1L);
-        vo.setName("洗衣液");
-        vo.setImageUrl("/uploads/xiyiye.png");
-        vo.setPointsRequired(200);
-        vo.setStock(100);
-        return new PageResult<>(Collections.singletonList(vo), 1L, size, page);
+        long offset = (page - 1) * size;
+        long total = mallItemMapper.countAvailableItems();
+        List<MallItem> items = mallItemMapper.findAvailableItems(offset, size);
+        
+        List<MallItemVO> voList = items.stream().map(item -> {
+            MallItemVO vo = new MallItemVO();
+            vo.setId(item.getId());
+            vo.setName(item.getName());
+            vo.setImageUrl(item.getImageUrl());
+            vo.setPointsRequired(item.getPoints());
+            vo.setStock(item.getStock());
+            return vo;
+        }).collect(Collectors.toList());
+        
+        return new PageResult<>(voList, total, size, page);
     }
 
     @Override
+    @Transactional
     public RedeemRecordVO redeemMallItem(Long userId, Long itemId) {
+        // 1. 查找商品
+        MallItem item = mallItemMapper.findById(itemId);
+        if (item == null) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "商品不存在或已下架");
+        }
+        if (item.getStock() <= 0) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "商品库存不足");
+        }
+
+        // 2. 查找用户积分账户
+        UserPointsAccount account = userPointsAccountMapper.findByUserId(userId);
+        if (account == null) {
+            // 如果账户不存在，初始化一个空账户（实际应在注册时初始化）
+            userPointsAccountMapper.insertDefaultAccount(userId);
+            account = userPointsAccountMapper.findByUserId(userId);
+        }
+
+        // 3. 判断积分是否足够
+        if (account.getPoints() < item.getPoints()) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "积分不足");
+        }
+
+        // 4. 扣减库存 (乐观锁防止超卖)
+        int updated = mallItemMapper.decreaseStock(itemId);
+        if (updated == 0) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "商品已被抢空");
+        }
+
+        // 5. 扣减积分
+        int pointsUpdated = userPointsAccountMapper.deductPoints(userId, item.getPoints());
+        if (pointsUpdated == 0) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "积分扣减失败");
+        }
+
+        // 6. 生成兑换记录
+        MallRedeemRecord record = new MallRedeemRecord();
+        record.setRecordNo("RD" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 4));
+        record.setUserId(userId);
+        record.setItemId(itemId);
+        record.setItemName(item.getName());
+        record.setPointsCost(item.getPoints());
+        record.setRemainPoints(account.getPoints() - item.getPoints());
+        record.setStatus("COMPLETED");
+        mallRedeemRecordMapper.insert(record);
+
+        // 7. 返回结果
         RedeemRecordVO vo = new RedeemRecordVO();
-        vo.setId(System.currentTimeMillis());
-        vo.setItemName("洗衣液");
-        vo.setPointsCost(200);
+        vo.setId(record.getId());
+        vo.setItemName(record.getItemName());
+        vo.setPointsCost(record.getPointsCost());
         vo.setRedeemTime(new Date());
-        vo.setStatus("COMPLETED");
+        vo.setStatus(record.getStatus());
         return vo;
     }
 
     @Override
     public PageResult<RedeemRecordVO> getRedeemRecords(Long userId, Long page, Long size) {
-        RedeemRecordVO vo = new RedeemRecordVO();
-        vo.setId(1L);
-        vo.setItemName("洗洁精");
-        vo.setPointsCost(150);
-        vo.setRedeemTime(new Date());
-        vo.setStatus("COMPLETED");
-        return new PageResult<>(Collections.singletonList(vo), 1L, size, page);
+        long offset = (page - 1) * size;
+        long total = mallRedeemRecordMapper.countByUserId(userId);
+        List<MallRedeemRecord> records = mallRedeemRecordMapper.findByUserId(userId, offset, size);
+
+        List<RedeemRecordVO> voList = records.stream().map(record -> {
+            RedeemRecordVO vo = new RedeemRecordVO();
+            vo.setId(record.getId());
+            vo.setItemName(record.getItemName());
+            vo.setPointsCost(record.getPointsCost());
+            vo.setRedeemTime(record.getCreatedAt());
+            vo.setStatus(record.getStatus());
+            return vo;
+        }).collect(Collectors.toList());
+
+        return new PageResult<>(voList, total, size, page);
     }
 
     @Override
