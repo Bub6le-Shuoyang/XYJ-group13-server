@@ -12,9 +12,11 @@ import com.xyj.xyjserver.dto.RegisterDTO;
 import com.xyj.xyjserver.dto.SendEmailCodeDTO;
 import com.xyj.xyjserver.entity.Admin;
 import com.xyj.xyjserver.entity.Courier;
+import com.xyj.xyjserver.entity.EmailCode;
 import com.xyj.xyjserver.entity.User;
 import com.xyj.xyjserver.mapper.AdminMapper;
 import com.xyj.xyjserver.mapper.CourierMapper;
+import com.xyj.xyjserver.mapper.EmailCodeMapper;
 import com.xyj.xyjserver.mapper.UserMapper;
 import com.xyj.xyjserver.service.AuthService;
 import com.xyj.xyjserver.vo.CaptchaResponseVO;
@@ -22,8 +24,12 @@ import com.xyj.xyjserver.vo.LoginResponseVO;
 import com.xyj.xyjserver.vo.UserVO;
 import io.jsonwebtoken.Claims;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,10 +43,17 @@ public class AuthServiceImpl implements AuthService {
     private UserMapper userMapper;
     @Autowired
     private CourierMapper courierMapper;
+    @Autowired
+    private EmailCodeMapper emailCodeMapper;
+    
+    @Autowired
+    private JavaMailSender mailSender;
+    
+    @Value("${spring.mail.username}")
+    private String fromEmail;
 
-    // 内存缓存模拟Redis，实际项目应使用Redis，且设置过期时间
+    // 图形验证码依然使用内存缓存，有效期可由定时任务清理（此处简写）
     private static final Map<String, String> CAPTCHA_CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, String> EMAIL_CODE_CACHE = new ConcurrentHashMap<>();
 
     @Override
     public CaptchaResponseVO getCaptcha() {
@@ -72,16 +85,27 @@ public class AuthServiceImpl implements AuthService {
         CAPTCHA_CACHE.remove(sendEmailCodeDTO.getCaptchaId());
 
         // 2. 生成 6 位数字验证码
-        String emailCode = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+        String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
         
-        // 3. 将验证码存入缓存 (模拟发送)
-        EMAIL_CODE_CACHE.put(sendEmailCodeDTO.getEmail(), emailCode);
+        // 3. 将验证码存入数据库，设置 5 分钟过期
+        EmailCode emailCode = new EmailCode();
+        emailCode.setEmail(sendEmailCodeDTO.getEmail());
+        emailCode.setCode(code);
+        emailCode.setExpireTime(new Date(System.currentTimeMillis() + 5 * 60 * 1000));
+        emailCodeMapper.insert(emailCode);
         
-        // 控制台打印模拟发送邮件
-        System.out.println("====== [模拟发送邮件] ======");
-        System.out.println("收件人: " + sendEmailCodeDTO.getEmail());
-        System.out.println("验证码: " + emailCode);
-        System.out.println("============================");
+        // 4. 真实发送邮件
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(sendEmailCodeDTO.getEmail());
+            message.setSubject("【乡驿家】注册验证码");
+            message.setText("您的注册验证码为：" + code + "，有效期 5 分钟，请勿泄露给他人。");
+            mailSender.send(message);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new BusinessException(ResultCode.FAILED, "邮件发送失败，请稍后再试");
+        }
 
         return true;
     }
@@ -93,9 +117,9 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ResultCode.VALIDATE_FAILED, "两次输入的密码不一致");
         }
 
-        // 2. 校验邮箱验证码
-        String cachedCode = EMAIL_CODE_CACHE.get(registerDTO.getEmail());
-        if (cachedCode == null || !cachedCode.equals(registerDTO.getEmailCode())) {
+        // 2. 校验邮箱验证码（从数据库查询）
+        EmailCode validCode = emailCodeMapper.findValidCodeByEmail(registerDTO.getEmail());
+        if (validCode == null || !validCode.getCode().equals(registerDTO.getEmailCode())) {
             throw new BusinessException(ResultCode.VALIDATE_FAILED, "邮箱验证码错误或已过期");
         }
 
@@ -157,8 +181,8 @@ public class AuthServiceImpl implements AuthService {
                 throw new BusinessException(ResultCode.VALIDATE_FAILED, "未知的角色类型");
         }
 
-        // 5. 注册成功后清除邮箱验证码缓存
-        EMAIL_CODE_CACHE.remove(registerDTO.getEmail());
+        // 5. 注册成功后将邮箱验证码标记为已使用
+        emailCodeMapper.markAsUsed(validCode.getId());
 
         // 6. 返回登录状态
         return buildLoginResponse(userId, role, userVO);
