@@ -2,9 +2,12 @@ package com.xyj.xyjserver.controller;
 
 import com.xyj.xyjserver.common.api.PageResult;
 import com.xyj.xyjserver.common.api.Result;
+import com.xyj.xyjserver.common.api.ResultCode;
+import com.xyj.xyjserver.common.exception.BusinessException;
 import com.xyj.xyjserver.common.interceptor.AuthInterceptor;
 import com.xyj.xyjserver.dto.PackageComplainDTO;
 import com.xyj.xyjserver.dto.PackageRateDTO;
+import com.xyj.xyjserver.dto.UserPackageCreateDTO;
 import com.xyj.xyjserver.service.UserPackageService;
 import com.xyj.xyjserver.vo.PackageVO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,7 +36,21 @@ public class UserPackageController {
             @RequestParam(defaultValue = "1") Long page,
             @RequestParam(defaultValue = "10") Long size) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request, "USER");
         return Result.success(userPackageService.getMyReceivePackages(userId, type, page, size));
+    }
+
+    /**
+     * 用户提交包裹信息
+     */
+    @Operation(summary = "用户提交包裹信息")
+    @PostMapping
+    public Result<PackageVO> createPackage(
+            HttpServletRequest request,
+            @Validated @RequestBody UserPackageCreateDTO createDTO) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request, "USER");
+        return Result.success(userPackageService.createPackage(userId, createDTO));
     }
 
     /**
@@ -45,6 +62,7 @@ public class UserPackageController {
             HttpServletRequest request,
             @PathVariable("package_id") String packageId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request, "USER");
         return Result.success(userPackageService.getPackageDetail(userId, packageId));
     }
 
@@ -57,6 +75,7 @@ public class UserPackageController {
             HttpServletRequest request,
             @PathVariable("package_id") String packageId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request, "USER");
         return Result.success(userPackageService.confirmReceipt(userId, packageId));
     }
 
@@ -70,6 +89,7 @@ public class UserPackageController {
             @PathVariable("package_id") String packageId,
             @Validated @RequestBody PackageRateDTO rateDTO) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request, "USER");
         return Result.success(userPackageService.ratePackage(userId, packageId, rateDTO));
     }
 
@@ -83,6 +103,14 @@ public class UserPackageController {
             @PathVariable("package_id") String packageId,
             @Validated @RequestBody PackageComplainDTO complainDTO) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        requireRole(request, "USER");
         return Result.success(userPackageService.complainPackage(userId, packageId, complainDTO));
+    }
+
+    private void requireRole(HttpServletRequest request, String expectedRole) {
+        String role = (String) request.getAttribute(AuthInterceptor.USER_ROLE_ATTR);
+        if (!expectedRole.equals(role)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "当前角色无权访问该接口");
+        }
     }
 }
