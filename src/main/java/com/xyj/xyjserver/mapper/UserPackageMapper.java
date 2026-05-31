@@ -23,6 +23,19 @@ public interface UserPackageMapper {
             """)
     Long findDefaultStationId();
 
+    @Select("""
+            SELECT name
+            FROM stations
+            WHERE id = #{stationId}
+              AND status = 1
+              AND deleted_at IS NULL
+            LIMIT 1
+            """)
+    String findActiveStationName(@Param("stationId") Long stationId);
+
+    @Select("SELECT COUNT(*) FROM packages WHERE package_no = #{packageNo}")
+    Long countByPackageNo(@Param("packageNo") String packageNo);
+
     @Insert("""
             INSERT INTO packages(
                 package_no, pickup_code, name, sender_name, receiver_user_id, receiver_name,

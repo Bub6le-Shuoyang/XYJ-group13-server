@@ -13,6 +13,9 @@ public class RedeemRecordVO {
     
     @JsonProperty("points_cost")
     private Integer pointsCost;
+
+    @JsonProperty("remain_points")
+    private Integer remainPoints;
     
     @JsonProperty("redeem_time")
     private Date redeemTime;

@@ -10,7 +10,7 @@ CREATE TABLE `mall_items` (
                               `name`        VARCHAR(64)  NOT NULL COMMENT '权益名称',
                               `description` VARCHAR(255) DEFAULT NULL COMMENT '权益说明',
                               `points`      INT          NOT NULL COMMENT '兑换所需积分',
-                              `type`        VARCHAR(16)  NOT NULL COMMENT 'goods' COMMENT 'coupon/goods',
+                              `type`        VARCHAR(16)  NOT NULL COMMENT 'coupon/goods',
                               `stock`       INT          DEFAULT 0 COMMENT '库存',
                               `status`      TINYINT      DEFAULT 1 COMMENT '0=下架，1=上架',
                               `image_url`   VARCHAR(512) DEFAULT NULL COMMENT '展示图片链接',
