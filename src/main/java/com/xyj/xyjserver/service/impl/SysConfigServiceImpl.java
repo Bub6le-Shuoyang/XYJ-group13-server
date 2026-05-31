@@ -51,7 +51,14 @@ public class SysConfigServiceImpl implements SysConfigService {
         vo.setAdNo(ad.getAdNo());
         vo.setName(ad.getName());
         vo.setImageUrl(ad.getImageUrl());
-        vo.setTargetUrl(ad.getTargetUrl());
+        vo.setTargetUrl(cleanUrl(ad.getTargetUrl()));
         return vo;
+    }
+
+    private String cleanUrl(String url) {
+        if (url == null) {
+            return null;
+        }
+        return url.trim().replace("`", "");
     }
 }

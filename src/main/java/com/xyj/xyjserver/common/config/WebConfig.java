@@ -30,6 +30,7 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         configureCors(registry.addMapping("/api/v1/**"));
         configureCors(registry.addMapping("/admin/picture/**"));
+        configureCors(registry.addMapping("/admin/advertisement/**"));
         configureCors(registry.addMapping("/uploads/**"));
     }
 
