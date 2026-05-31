@@ -34,3 +34,13 @@ build/
 
 ### Uploads ###
 /uploads/
+
+### Node.js ###
+node_modules/
+pnpm-lock.yaml
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.pnpm-store/
