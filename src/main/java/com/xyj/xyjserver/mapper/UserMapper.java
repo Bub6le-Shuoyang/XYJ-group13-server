@@ -17,4 +17,9 @@ public interface UserMapper {
 
     @Select("SELECT * FROM users ORDER BY created_at DESC")
     List<User> findAll();
+
+    @org.apache.ibatis.annotations.Insert("INSERT INTO users(user_no, email, password_hash, nickname, status, created_at, updated_at) " +
+            "VALUES(#{userNo}, #{email}, #{passwordHash}, #{nickname}, #{status}, NOW(), NOW())")
+    @org.apache.ibatis.annotations.Options(useGeneratedKeys = true, keyProperty = "id")
+    int insert(User user);
 }

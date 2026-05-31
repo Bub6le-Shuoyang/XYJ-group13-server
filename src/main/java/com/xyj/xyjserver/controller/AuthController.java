@@ -4,7 +4,10 @@ import com.xyj.xyjserver.common.api.Result;
 import com.xyj.xyjserver.common.interceptor.AuthInterceptor;
 import com.xyj.xyjserver.dto.LoginDTO;
 import com.xyj.xyjserver.dto.RefreshTokenDTO;
+import com.xyj.xyjserver.dto.RegisterDTO;
+import com.xyj.xyjserver.dto.SendEmailCodeDTO;
 import com.xyj.xyjserver.service.AuthService;
+import com.xyj.xyjserver.vo.CaptchaResponseVO;
 import com.xyj.xyjserver.vo.LoginResponseVO;
 import com.xyj.xyjserver.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +24,34 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    /**
+     * 获取图形验证码
+     */
+    @Operation(summary = "获取图形验证码")
+    @GetMapping("/captcha")
+    public Result<CaptchaResponseVO> getCaptcha() {
+        return Result.success(authService.getCaptcha());
+    }
+
+    /**
+     * 发送邮箱验证码
+     */
+    @Operation(summary = "发送邮箱验证码")
+    @PostMapping("/send-email-code")
+    public Result<Boolean> sendEmailCode(@Validated @RequestBody SendEmailCodeDTO sendEmailCodeDTO) {
+        return Result.success(authService.sendEmailCode(sendEmailCodeDTO));
+    }
+
+    /**
+     * 统一注册接口
+     */
+    @Operation(summary = "统一注册接口")
+    @PostMapping("/register")
+    public Result<LoginResponseVO> register(@Validated @RequestBody RegisterDTO registerDTO) {
+        LoginResponseVO responseVO = authService.register(registerDTO);
+        return Result.success(responseVO);
+    }
 
     /**
      * 账号密码登录

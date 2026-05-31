@@ -13,4 +13,9 @@ public interface CourierMapper {
 
     @Select("SELECT * FROM couriers WHERE id = #{id}")
     Courier findById(@Param("id") Long id);
+
+    @org.apache.ibatis.annotations.Insert("INSERT INTO couriers(courier_no, account, password_hash, name, status, created_at, updated_at) " +
+            "VALUES(#{courierNo}, #{account}, #{passwordHash}, #{name}, #{status}, NOW(), NOW())")
+    @org.apache.ibatis.annotations.Options(useGeneratedKeys = true, keyProperty = "id")
+    int insert(Courier courier);
 }

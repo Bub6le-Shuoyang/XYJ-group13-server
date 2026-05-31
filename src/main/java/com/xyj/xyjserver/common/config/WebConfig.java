@@ -32,6 +32,9 @@ public class WebConfig implements WebMvcConfigurer {
                 // 放行登录和密码重置相关的接口
                 .excludePathPatterns(
                         "/api/v1/auth/login",
+                        "/api/v1/auth/captcha",
+                        "/api/v1/auth/send-email-code",
+                        "/api/v1/auth/register",
                         "/api/v1/admin/auth/login",
                         "/api/v1/admin/auth/reset-password",
                         "/api/v1/auth/refresh",
