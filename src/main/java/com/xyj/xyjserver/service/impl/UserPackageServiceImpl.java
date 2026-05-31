@@ -33,11 +33,15 @@ public class UserPackageServiceImpl implements UserPackageService {
 
     @Override
     public PackageVO createPackage(Long userId, UserPackageCreateDTO createDTO) {
-        Long stationId = userPackageMapper.findDefaultStationId();
-        if (stationId == null) {
-            throw new BusinessException(ResultCode.FAILED, "暂无可用驿站，无法提交包裹");
+        String packageNo = createDTO.getOrderNo().trim();
+        if (userPackageMapper.countByPackageNo(packageNo) > 0) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "订单号已存在，请核对后重新提交");
         }
-        String packageNo = "PKG-" + System.currentTimeMillis();
+        Long stationId = createDTO.getStationId();
+        String stationName = userPackageMapper.findActiveStationName(stationId);
+        if (stationName == null) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "请选择有效的寄件驿站");
+        }
         String pickupCode = "QJ" + String.valueOf(System.currentTimeMillis()).substring(8);
         BigDecimal rewardAmount = createDTO.getRewardAmount() == null
                 ? new BigDecimal("8.00")
@@ -45,8 +49,8 @@ public class UserPackageServiceImpl implements UserPackageService {
         userPackageMapper.insertUserPackage(
                 packageNo,
                 pickupCode,
-                createDTO.getName(),
-                createDTO.getSenderName(),
+                packageNo,
+                stationName,
                 userId,
                 createDTO.getReceiverName(),
                 createDTO.getReceiverPhone(),

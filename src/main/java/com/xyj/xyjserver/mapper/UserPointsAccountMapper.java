@@ -15,6 +15,9 @@ public interface UserPointsAccountMapper {
 
     @Update("UPDATE user_points_accounts SET points = points - #{points} WHERE user_id = #{userId} AND points >= #{points}")
     int deductPoints(@Param("userId") Long userId, @Param("points") Integer points);
+
+    @Update("UPDATE user_points_accounts SET coupon_count = coupon_count + 1 WHERE user_id = #{userId}")
+    int increaseCouponCount(@Param("userId") Long userId);
     
     @Insert("INSERT INTO user_points_accounts(user_id, points, coupon_count, balance, member_level, monthly_signed_count, updated_at) " +
             "VALUES(#{userId}, 0, 0, 0, '普通村民', 0, NOW())")

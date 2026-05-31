@@ -38,6 +38,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 
     @Override
     public UserProfileVO getUserProfile(Long userId) {
+        UserPointsAccount account = getOrCreatePointsAccount(userId);
         UserProfileVO vo = new UserProfileVO();
         vo.setId(userId);
         vo.setUserNo("U" + userId);
@@ -45,9 +46,9 @@ public class UserProfileServiceImpl implements UserProfileService {
         vo.setAvatarUrl("/uploads/avatar.png");
         vo.setPhone("13800138000");
         vo.setIsRealnameAuth(true);
-        vo.setBalance(new BigDecimal("100.00"));
-        vo.setPoints(500);
-        vo.setCouponCount(3);
+        vo.setBalance(account.getBalance());
+        vo.setPoints(account.getPoints());
+        vo.setCouponCount(account.getCouponCount());
         return vo;
     }
 
@@ -106,6 +107,8 @@ public class UserProfileServiceImpl implements UserProfileService {
             MallItemVO vo = new MallItemVO();
             vo.setId(item.getId());
             vo.setName(item.getName());
+            vo.setDescription(item.getDescription());
+            vo.setType(item.getType());
             vo.setImageUrl(item.getImageUrl());
             vo.setPointsRequired(item.getPoints());
             vo.setStock(item.getStock());
@@ -128,12 +131,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         }
 
         // 2. 查找用户积分账户
-        UserPointsAccount account = userPointsAccountMapper.findByUserId(userId);
-        if (account == null) {
-            // 如果账户不存在，初始化一个空账户（实际应在注册时初始化）
-            userPointsAccountMapper.insertDefaultAccount(userId);
-            account = userPointsAccountMapper.findByUserId(userId);
-        }
+        UserPointsAccount account = getOrCreatePointsAccount(userId);
 
         // 3. 判断积分是否足够
         if (account.getPoints() < item.getPoints()) {
@@ -150,6 +148,9 @@ public class UserProfileServiceImpl implements UserProfileService {
         int pointsUpdated = userPointsAccountMapper.deductPoints(userId, item.getPoints());
         if (pointsUpdated == 0) {
             throw new BusinessException(ResultCode.VALIDATE_FAILED, "积分扣减失败");
+        }
+        if ("coupon".equalsIgnoreCase(item.getType())) {
+            userPointsAccountMapper.increaseCouponCount(userId);
         }
 
         // 6. 生成兑换记录
@@ -168,6 +169,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         vo.setId(record.getId());
         vo.setItemName(record.getItemName());
         vo.setPointsCost(record.getPointsCost());
+        vo.setRemainPoints(record.getRemainPoints());
         vo.setRedeemTime(new Date());
         vo.setStatus(record.getStatus());
         return vo;
@@ -184,6 +186,7 @@ public class UserProfileServiceImpl implements UserProfileService {
             vo.setId(record.getId());
             vo.setItemName(record.getItemName());
             vo.setPointsCost(record.getPointsCost());
+            vo.setRemainPoints(record.getRemainPoints());
             vo.setRedeemTime(record.getCreatedAt());
             vo.setStatus(record.getStatus());
             return vo;
@@ -208,5 +211,14 @@ public class UserProfileServiceImpl implements UserProfileService {
         vo.setWorkTime("09:00-18:00");
         vo.setWechatId("xyj_support");
         return vo;
+    }
+
+    private UserPointsAccount getOrCreatePointsAccount(Long userId) {
+        UserPointsAccount account = userPointsAccountMapper.findByUserId(userId);
+        if (account == null) {
+            userPointsAccountMapper.insertDefaultAccount(userId);
+            account = userPointsAccountMapper.findByUserId(userId);
+        }
+        return account;
     }
 }

@@ -7,6 +7,8 @@ import lombok.Data;
 public class MallItemVO {
     private Long id;
     private String name;
+    private String description;
+    private String type;
     
     @JsonProperty("image_url")
     private String imageUrl;
