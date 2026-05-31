@@ -59,7 +59,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v1/auth/refresh",
                         "/api/v1/admin/auth/captcha",
                         "/api/v1/admin/auth/send-email-code",
-                        "/api/v1/admin/auth/register"
+                        "/api/v1/admin/auth/register",
+                        "/api/v1/sys/ads/splash", // 放行开屏广告拉取
+                        "/admin/**" // 排除后台页面路由
                 );
     }
 
