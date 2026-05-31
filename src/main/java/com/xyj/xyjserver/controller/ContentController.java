@@ -43,7 +43,8 @@ public class ContentController {
             HttpServletRequest request,
             @Validated @RequestBody NewsPostDTO postDTO) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
-        return Result.success(contentService.publishNews(userId, postDTO));
+        String role = (String) request.getAttribute(AuthInterceptor.USER_ROLE_ATTR);
+        return Result.success(contentService.publishNews(userId, role, postDTO));
     }
 
     /**
