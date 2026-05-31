@@ -28,11 +28,6 @@ public class AuthInterceptor implements HandlerInterceptor {
         String authHeader = request.getHeader("Authorization");
         if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            if ("dummy_token".equals(token)) {
-                request.setAttribute(USER_ID_ATTR, 1L);
-                request.setAttribute(USER_ROLE_ATTR, "ADMIN");
-                return true;
-            }
             if (JwtUtil.validateToken(token)) {
                 Long userId = JwtUtil.getUserId(token);
                 String role = JwtUtil.parseToken(token).get("role", String.class);
