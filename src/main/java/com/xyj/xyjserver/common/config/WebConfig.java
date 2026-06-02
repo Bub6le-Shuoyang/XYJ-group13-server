@@ -36,7 +36,11 @@ public class WebConfig implements WebMvcConfigurer {
 
     private CorsRegistration configureCors(CorsRegistration registration) {
         return registration
-                .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
+                .allowedOriginPatterns(
+                        "http://localhost:*",
+                        "http://127.0.0.1:*",
+                        "http://192.168.*:*"
+                )
                 .allowedMethods("GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("*")
                 .exposedHeaders("Authorization")
