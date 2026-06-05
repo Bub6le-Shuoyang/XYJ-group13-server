@@ -5,6 +5,7 @@ import com.xyj.xyjserver.service.UploadService;
 import com.xyj.xyjserver.vo.UploadVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,7 +28,7 @@ public class UploadController {
     @PostMapping
     public Result<UploadVO> uploadFile(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "scene", required = false) String scene) {
+            @Parameter(description = "上传场景（可选）", example = "avatar") @RequestParam(value = "scene", required = false) String scene) {
         return Result.success(uploadService.uploadFile(file, scene));
     }
 }

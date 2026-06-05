@@ -2,13 +2,10 @@ package com.xyj.xyjserver.mapper;
 
 import com.xyj.xyjserver.vo.CommentVO;
 import com.xyj.xyjserver.vo.NewsPostVO;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface ContentMapper {
@@ -101,4 +98,62 @@ public interface ContentMapper {
             WHERE c.id = LAST_INSERT_ID()
             """)
     CommentVO findLastInsertedComment();
+
+    // ===== Admin methods =====
+
+    @Update("<script>" +
+            "UPDATE news_posts " +
+            "<set>" +
+            "<if test='title != null'>title = #{title},</if>" +
+            "<if test='content != null'>content = #{content},</if>" +
+            "<if test='tag != null'>tag = #{tag},</if>" +
+            "<if test='isUrgent != null'>is_urgent = #{isUrgent},</if>" +
+            "updated_at = NOW()," +
+            "</set>" +
+            "WHERE id = #{id}" +
+            "</script>")
+    int updateNews(@Param("id") Long id,
+                   @Param("title") String title,
+                   @Param("content") String content,
+                   @Param("tag") String tag,
+                   @Param("isUrgent") Boolean isUrgent);
+
+    @Delete("DELETE FROM news_posts WHERE id = #{id}")
+    int deleteNews(@Param("id") Long id);
+
+    @Select("""
+            SELECT
+                c.id,
+                c.content,
+                COALESCE(u.nickname, CONCAT('用户', c.user_id)) AS author,
+                c.created_at AS time,
+                c.status
+            FROM news_comments c
+            LEFT JOIN users u ON c.user_id = u.id
+            WHERE c.post_id = #{postId}
+            ORDER BY c.created_at DESC
+            """)
+    List<Map<String, Object>> findCommentsByPostId(@Param("postId") Long postId);
+
+    @Select("""
+            SELECT
+                c.id,
+                c.content,
+                COALESCE(u.nickname, CONCAT('用户', c.user_id)) AS author,
+                c.status,
+                c.created_at AS time,
+                p.title AS post_title
+            FROM news_comments c
+            LEFT JOIN users u ON c.user_id = u.id
+            LEFT JOIN news_posts p ON c.post_id = p.id
+            ORDER BY c.created_at DESC
+            LIMIT #{offset}, #{size}
+            """)
+    List<Map<String, Object>> findAllComments(@Param("offset") long offset, @Param("size") long size);
+
+    @Select("SELECT COUNT(*) FROM news_comments")
+    Long countAllComments();
+
+    @Update("UPDATE news_comments SET status = #{status}, updated_at = NOW() WHERE id = #{id}")
+    int toggleCommentStatus(@Param("id") Long id, @Param("status") Integer status);
 }

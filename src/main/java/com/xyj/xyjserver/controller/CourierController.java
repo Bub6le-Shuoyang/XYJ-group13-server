@@ -14,6 +14,7 @@ import com.xyj.xyjserver.vo.TaskVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -33,8 +34,8 @@ public class CourierController {
     @GetMapping("/tasks/available")
     public Result<PageResult<TaskVO>> getAvailableTasks(
             HttpServletRequest request,
-            @RequestParam(defaultValue = "1") Long page,
-            @RequestParam(defaultValue = "10") Long size) {
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Long page,
+            @Parameter(description = "每页条数", example = "10") @RequestParam(defaultValue = "10") Long size) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
         return Result.success(courierService.getAvailableTasks(courierId, page, size));
@@ -47,9 +48,9 @@ public class CourierController {
     @GetMapping("/tasks/mine")
     public Result<PageResult<TaskVO>> getMyTasks(
             HttpServletRequest request,
-            @RequestParam(defaultValue = "ASSIGNED") String status,
-            @RequestParam(defaultValue = "1") Long page,
-            @RequestParam(defaultValue = "10") Long size) {
+            @Parameter(description = "任务状态筛选", example = "ASSIGNED") @RequestParam(defaultValue = "ASSIGNED") String status,
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Long page,
+            @Parameter(description = "每页条数", example = "10") @RequestParam(defaultValue = "10") Long size) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
         return Result.success(courierService.getMyTasks(courierId, status, page, size));
@@ -62,7 +63,7 @@ public class CourierController {
     @PostMapping("/tasks/{task_id}/grab")
     public Result<TaskVO> grabTask(
             HttpServletRequest request,
-            @PathVariable("task_id") String taskId) {
+            @Parameter(description = "任务ID", example = "TASK001") @PathVariable("task_id") String taskId) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
         return Result.success(courierService.grabTask(courierId, taskId));
@@ -75,7 +76,7 @@ public class CourierController {
     @PostMapping("/tasks/{task_id}/pickup")
     public Result<TaskVO> pickupTask(
             HttpServletRequest request,
-            @PathVariable("task_id") String taskId) {
+            @Parameter(description = "任务ID", example = "TASK001") @PathVariable("task_id") String taskId) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
         return Result.success(courierService.pickupTask(courierId, taskId));
@@ -88,7 +89,7 @@ public class CourierController {
     @PostMapping("/tasks/{task_id}/deliver")
     public Result<TaskVO> deliverTask(
             HttpServletRequest request,
-            @PathVariable("task_id") String taskId,
+            @Parameter(description = "任务ID", example = "TASK001") @PathVariable("task_id") String taskId,
             @Validated @RequestBody DeliverDTO deliverDTO) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
@@ -102,7 +103,7 @@ public class CourierController {
     @PostMapping("/tasks/{task_id}/verify-pickup-code")
     public Result<TaskVO> verifyPickupCode(
             HttpServletRequest request,
-            @PathVariable("task_id") String taskId,
+            @Parameter(description = "任务ID", example = "TASK001") @PathVariable("task_id") String taskId,
             @Validated @RequestBody VerifyPickupCodeDTO verifyDTO) {
         Long courierId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);

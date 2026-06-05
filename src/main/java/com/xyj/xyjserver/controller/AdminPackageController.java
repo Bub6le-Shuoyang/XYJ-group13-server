@@ -15,6 +15,7 @@ import com.xyj.xyjserver.vo.TaskVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -34,9 +35,9 @@ public class AdminPackageController {
     @GetMapping("/packages")
     public Result<PageResult<PackageVO>> getStationPackages(
             HttpServletRequest request,
-            @RequestParam(required = false, defaultValue = "IN_STOCK") String status,
-            @RequestParam(defaultValue = "1") Long page,
-            @RequestParam(defaultValue = "100") Long size) {
+            @Parameter(description = "包裹状态筛选", example = "IN_STOCK") @RequestParam(required = false, defaultValue = "IN_STOCK") String status,
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Long page,
+            @Parameter(description = "每页条数", example = "100") @RequestParam(defaultValue = "100") Long size) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
         return Result.success(adminPackageService.getStationPackages(adminId, status, page, size));
@@ -49,7 +50,7 @@ public class AdminPackageController {
     @PostMapping("/packages/{package_id}/approve")
     public Result<TaskVO> approvePackage(
             HttpServletRequest request,
-            @PathVariable("package_id") String packageId,
+            @Parameter(description = "包裹ID", example = "PKG001") @PathVariable("package_id") String packageId,
             @RequestBody(required = false) PackageApproveDTO approveDTO) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
@@ -67,7 +68,7 @@ public class AdminPackageController {
     @PostMapping("/packages/{package_id}/inbound")
     public Result<Boolean> inboundPackage(
             HttpServletRequest request,
-            @PathVariable("package_id") String packageId,
+            @Parameter(description = "包裹ID", example = "PKG001") @PathVariable("package_id") String packageId,
             @Validated @RequestBody PackageInboundDTO inboundDTO) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
@@ -81,7 +82,7 @@ public class AdminPackageController {
     @PostMapping("/packages/{package_id}/outbound")
     public Result<Boolean> outboundPackage(
             HttpServletRequest request,
-            @PathVariable("package_id") String packageId) {
+            @Parameter(description = "包裹ID", example = "PKG001") @PathVariable("package_id") String packageId) {
         Long adminId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         requireRole(request);
         return Result.success(adminPackageService.outboundPackage(adminId, packageId));

@@ -26,6 +26,10 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
     @Override
     public LoginResponseVO login(AdminLoginDTO loginDTO) {
+        // 仅允许 admin 账号登录后台管理系统
+        if (!"admin".equals(loginDTO.getEmail())) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "仅超级管理员账号可登录后台");
+        }
         Admin admin = adminMapper.findByAccount(loginDTO.getEmail());
         if (admin == null || !BCrypt.checkpw(loginDTO.getPassword(), admin.getPasswordHash())) {
             throw new BusinessException(ResultCode.VALIDATE_FAILED, "账号或密码错误");

@@ -44,7 +44,7 @@ public class AdminPackageServiceImpl implements AdminPackageService {
         }
         Long id = adminPackageMapper.findStationPackageId(stationId, packageId);
         if (id != null) {
-            adminPackageMapper.insertTimeline(id, "TASK_PUBLISHED", "站点管理员审批通过，等待骑手抢单");
+            adminPackageMapper.insertTimeline(id, "TASK_PUBLISHED", "站点管理员审批通过，等待配送员抢单");
         }
         String taskNo = "TASK-" + System.currentTimeMillis();
         BigDecimal rewardAmount = approveDTO.getRewardAmount() == null
@@ -121,6 +121,11 @@ public class AdminPackageServiceImpl implements AdminPackageService {
     }
 
     private Long requireStation(Long adminId) {
+        // 超级管理员（role=3）无需绑定站点，可管理所有站点数据
+        Integer role = adminPackageMapper.findAdminRole(adminId);
+        if (role != null && role >= 3) {
+            return null; // null 表示不限制站点
+        }
         Long stationId = adminPackageMapper.findAdminStationId(adminId);
         if (stationId == null) {
             throw new BusinessException(ResultCode.FORBIDDEN, "当前管理员未绑定站点");

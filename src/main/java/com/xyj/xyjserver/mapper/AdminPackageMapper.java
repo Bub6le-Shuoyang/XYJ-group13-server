@@ -11,9 +11,13 @@ import org.apache.ibatis.annotations.Update;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface AdminPackageMapper {
+
+    @Select("SELECT role FROM admins WHERE id = #{adminId}")
+    Integer findAdminRole(@Param("adminId") Long adminId);
 
     @Select("SELECT station_id FROM admins WHERE id = #{adminId}")
     Long findAdminStationId(@Param("adminId") Long adminId);
@@ -41,7 +45,7 @@ public interface AdminPackageMapper {
             LEFT JOIN delivery_tasks t ON t.package_id = p.id
             LEFT JOIN couriers c ON p.courier_id = c.id
             LEFT JOIN stations s ON p.station_id = s.id
-            WHERE p.station_id = #{stationId}
+            WHERE (#{stationId} IS NULL OR p.station_id = #{stationId})
               AND (#{status} IS NULL OR #{status} = '' OR p.status = #{status})
             ORDER BY p.created_at DESC
             LIMIT #{offset}, #{size}
@@ -55,7 +59,7 @@ public interface AdminPackageMapper {
     @Select("""
             SELECT COUNT(*)
             FROM packages
-            WHERE station_id = #{stationId}
+            WHERE (#{stationId} IS NULL OR station_id = #{stationId})
               AND (#{status} IS NULL OR #{status} = '' OR status = #{status})
             """)
     Long countStationPackages(@Param("stationId") Long stationId, @Param("status") String status);
@@ -64,7 +68,7 @@ public interface AdminPackageMapper {
             UPDATE packages
             SET status = 'IN_STOCK'
             WHERE package_no = #{packageNo}
-              AND station_id = #{stationId}
+              AND (#{stationId} IS NULL OR station_id = #{stationId})
               AND status = 'PENDING_INBOUND'
             """)
     int inboundPackage(@Param("stationId") Long stationId, @Param("packageNo") String packageNo);
@@ -73,7 +77,7 @@ public interface AdminPackageMapper {
             UPDATE packages
             SET status = 'TASK_PUBLISHED'
             WHERE package_no = #{packageNo}
-              AND station_id = #{stationId}
+              AND (#{stationId} IS NULL OR station_id = #{stationId})
               AND status = 'PENDING_INBOUND'
             """)
     int approvePackage(@Param("stationId") Long stationId, @Param("packageNo") String packageNo);
@@ -82,7 +86,7 @@ public interface AdminPackageMapper {
             UPDATE packages
             SET status = 'TASK_PUBLISHED'
             WHERE package_no = #{packageNo}
-              AND station_id = #{stationId}
+              AND (#{stationId} IS NULL OR station_id = #{stationId})
               AND status IN ('IN_STOCK', 'TASK_PUBLISHED')
             """)
     int outboundPackage(@Param("stationId") Long stationId, @Param("packageNo") String packageNo);
@@ -91,7 +95,7 @@ public interface AdminPackageMapper {
             SELECT id
             FROM packages
             WHERE package_no = #{packageNo}
-              AND station_id = #{stationId}
+              AND (#{stationId} IS NULL OR station_id = #{stationId})
             """)
     Long findStationPackageId(@Param("stationId") Long stationId, @Param("packageNo") String packageNo);
 
@@ -101,7 +105,7 @@ public interface AdminPackageMapper {
             FROM packages p
             LEFT JOIN stations s ON p.station_id = s.id
             WHERE p.package_no = #{packageNo}
-              AND p.station_id = #{stationId}
+              AND (#{stationId} IS NULL OR p.station_id = #{stationId})
               AND NOT EXISTS (SELECT 1 FROM delivery_tasks t WHERE t.package_id = p.id)
             """)
     int insertTask(
@@ -125,7 +129,7 @@ public interface AdminPackageMapper {
             FROM delivery_tasks t
             JOIN packages p ON t.package_id = p.id
             WHERE p.package_no = #{packageNo}
-              AND p.station_id = #{stationId}
+              AND (#{stationId} IS NULL OR p.station_id = #{stationId})
             """)
     TaskVO findTaskByPackageNo(@Param("stationId") Long stationId, @Param("packageNo") String packageNo);
 
@@ -148,7 +152,14 @@ public interface AdminPackageMapper {
                 SUM(CASE WHEN status IN ('TASK_PUBLISHED', 'ASSIGNED', 'DELIVERING', 'COMPLETED')
                           AND DATE(updated_at) = CURDATE() THEN 1 ELSE 0 END) AS today_outbound
             FROM packages
-            WHERE station_id = #{stationId}
+            WHERE (#{stationId} IS NULL OR station_id = #{stationId})
             """)
     StationStatisticsVO getStationStatistics(@Param("stationId") Long stationId);
+
+    @Select("""
+            SELECT package_no, name, receiver_name, receiver_phone, address, status, created_at
+            FROM packages
+            ORDER BY created_at DESC
+            """)
+    List<Map<String, Object>> findAllPackagesForExport();
 }

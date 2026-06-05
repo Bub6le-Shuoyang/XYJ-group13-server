@@ -169,13 +169,13 @@ public class AuthServiceImpl implements AuthService {
 
             case "COURIER":
                 if (courierMapper.findByAccount(registerDTO.getEmail()) != null) {
-                    throw new BusinessException(ResultCode.VALIDATE_FAILED, "该邮箱已被注册为骑手");
+                    throw new BusinessException(ResultCode.VALIDATE_FAILED, "该邮箱已被注册为配送员");
                 }
                 Courier courier = new Courier();
                 courier.setCourierNo("C" + System.currentTimeMillis());
-                courier.setAccount(registerDTO.getEmail()); // 骑手登录账号用邮箱
+                courier.setAccount(registerDTO.getEmail()); // 配送员登录账号用邮箱
                 courier.setPasswordHash(passwordHash);
-                courier.setName("骑手_" + registerDTO.getEmail().split("@")[0]); // 默认名字
+                courier.setName("配送员_" + registerDTO.getEmail().split("@")[0]); // 默认名字
                 courier.setStationId(getDefaultStationId());
                 courier.setStatus(1);
                 courierMapper.insert(courier);
@@ -295,7 +295,7 @@ public class AuthServiceImpl implements AuthService {
         switch (role) {
             case "ADMIN":
                 return convertToUserVO(adminMapper.findById(userId));
-            case "VILLAGER":
+            case "USER":
                 return convertToUserVO(userMapper.findById(userId));
             case "COURIER":
                 return convertToUserVO(courierMapper.findById(userId));
@@ -329,7 +329,7 @@ public class AuthServiceImpl implements AuthService {
         vo.setPhone(user.getPhone());
         vo.setNickname(user.getNickname());
         vo.setAvatarUrl(user.getAvatarUrl());
-        vo.setRole("VILLAGER");
+        vo.setRole("USER");
         vo.setIsRealnameAuth(false);
         return vo;
     }

@@ -5,6 +5,7 @@ import com.xyj.xyjserver.service.StationService;
 import com.xyj.xyjserver.vo.StationVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,8 +25,8 @@ public class StationController {
     @Operation(summary = "获取附近驿站")
     @GetMapping("/nearby")
     public Result<List<StationVO>> getNearbyStations(
-            @RequestParam(required = false) Double lat,
-            @RequestParam(required = false) Double lng) {
+            @Parameter(description = "纬度", example = "30.2741") @RequestParam(required = false) Double lat,
+            @Parameter(description = "经度", example = "120.1551") @RequestParam(required = false) Double lng) {
         return Result.success(stationService.getNearbyStations(lat, lng));
     }
 
@@ -34,7 +35,7 @@ public class StationController {
      */
     @Operation(summary = "获取驿站详情")
     @GetMapping("/{station_id}")
-    public Result<StationVO> getStationDetail(@PathVariable("station_id") String stationId) {
+    public Result<StationVO> getStationDetail(@Parameter(description = "驿站ID", example = "ST001") @PathVariable("station_id") String stationId) {
         return Result.success(stationService.getStationDetail(stationId));
     }
 }

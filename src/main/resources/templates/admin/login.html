@@ -2,100 +2,157 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>乡村驿站 - 后台登录</title>
-    <!-- Import Vue 3 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>乡驿家 - 管理后台</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <!-- Import Element Plus CSS -->
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-    <!-- Import Element Plus JS -->
     <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; background-color: #f0f2f5; background-image: url('https://gw.alipayobjects.com/zos/rmsportal/TVYTbAXzhhnHRepQyqVcuJw.svg'); background-repeat: no-repeat; background-position: center 110px; background-size: 100%; }
-        #app { height: 100%; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-        .login-container { width: 360px; background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 100px; }
-        .header { text-align: center; margin-bottom: 40px; }
-        .header img { height: 44px; margin-bottom: 10px; }
-        .header h1 { font-size: 24px; color: #333; margin: 0; font-weight: 600; }
-        .header p { font-size: 14px; color: #999; margin-top: 10px; }
-        .login-btn { width: 100%; margin-top: 10px; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
+        #app { height: 100%; }
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .login-page::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%);
+            animation: bgFloat 15s ease-in-out infinite;
+        }
+        @keyframes bgFloat {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(30px, -30px); }
+        }
+        .login-card {
+            position: relative;
+            z-index: 1;
+            width: 420px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+        .brand { text-align: center; margin-bottom: 36px; }
+        .brand-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin-bottom: 16px;
+        }
+        .brand-icon svg { width: 32px; height: 32px; fill: #fff; }
+        .brand h1 { font-size: 26px; color: #1a1a2e; margin: 0 0 6px 0; font-weight: 700; letter-spacing: 1px; }
+        .brand p { font-size: 14px; color: #8e8ea0; margin: 0; }
+        .login-btn {
+            width: 100%;
+            height: 46px;
+            font-size: 16px;
+            border-radius: 10px;
+            margin-top: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .login-btn:hover { opacity: 0.9; }
+        .el-form-item { margin-bottom: 22px; }
+        .el-input__wrapper { border-radius: 10px; padding: 4px 12px; }
+        .footer-text { text-align: center; margin-top: 28px; font-size: 12px; color: #b0b0c0; }
+        .input-icon { display: flex; align-items: center; color: #999; }
     </style>
 </head>
 <body>
 <div id="app">
-    <div class="login-container">
-        <div class="header">
-            <h1>乡村驿站 Admin</h1>
-            <p>乡村物流数字化综合管理平台</p>
+    <div class="login-page">
+        <div class="login-card">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <h1>乡驿家 Admin</h1>
+                <p>乡村物流数字化综合管理平台</p>
+            </div>
+            <el-form :model="loginForm" :rules="rules" ref="loginFormRef" @keyup.enter="handleLogin">
+                <el-form-item prop="email">
+                    <el-input v-model="loginForm.email" placeholder="请输入管理员账号" size="large" clearable>
+                        <template #prefix>
+                            <span class="input-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </span>
+                        </template>
+                    </el-input>
+                </el-form-item>
+                <el-form-item prop="password">
+                    <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" size="large" show-password>
+                        <template #prefix>
+                            <span class="input-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            </span>
+                        </template>
+                    </el-input>
+                </el-form-item>
+                <el-form-item>
+                    <el-button type="primary" class="login-btn" size="large" :loading="loading" @click="handleLogin">
+                        {{ loading ? '登录中...' : '登 录' }}
+                    </el-button>
+                </el-form-item>
+            </el-form>
+            <div class="footer-text">仅限站点管理员访问 &middot; 乡驿家 &copy; 2026</div>
         </div>
-        <el-form :model="loginForm" :rules="rules" ref="loginFormRef" @keyup.enter="handleLogin">
-            <el-form-item prop="account">
-                <el-input v-model="loginForm.account" placeholder="请输入管理员账号或邮箱" size="large">
-                    <template #prefix>
-                        <el-icon><User /></el-icon>
-                    </template>
-                </el-input>
-            </el-form-item>
-            <el-form-item prop="password">
-                <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" size="large" show-password>
-                    <template #prefix>
-                        <el-icon><Lock /></el-icon>
-                    </template>
-                </el-input>
-            </el-form-item>
-            <el-form-item prop="role">
-                <el-select v-model="loginForm.role" placeholder="请选择角色" size="large" style="width: 100%;">
-                    <el-option label="管理员 (ADMIN)" value="ADMIN"></el-option>
-                    <el-option label="村民 (VILLAGER)" value="VILLAGER"></el-option>
-                    <el-option label="骑手 (COURIER)" value="COURIER"></el-option>
-                </el-select>
-            </el-form-item>
-            <el-form-item>
-                <el-button type="primary" class="login-btn" size="large" :loading="loading" @click="handleLogin">登 录</el-button>
-            </el-form-item>
-        </el-form>
     </div>
 </div>
 
 <script>
     const { createApp, ref, reactive } = Vue;
     const { ElMessage } = ElementPlus;
-    // Import Icons manually if needed or assume some icons are available. We'll use simple text if icons fail.
-    
+
     const app = createApp({
         setup() {
             const loginFormRef = ref(null);
             const loading = ref(false);
             const loginForm = reactive({
-                account: 'admin@example.com',
-                password: 'MyPass123!',
-                role: 'ADMIN'
+                email: 'admin',
+                password: '123456'
             });
             const rules = {
-                account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-                password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-                role: [{ required: true, message: '请选择角色', trigger: 'change' }]
+                email: [{ required: true, message: '请输入管理员账号', trigger: 'blur' }],
+                password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
             };
 
             const handleLogin = () => {
                 loginFormRef.value.validate((valid) => {
                     if (valid) {
                         loading.value = true;
-                        fetch('/api/v1/auth/login', {
+                        fetch('/api/v1/admin/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(loginForm)
+                            body: JSON.stringify({ email: loginForm.email, password: loginForm.password })
                         })
                         .then(res => res.json())
                         .then(res => {
                             loading.value = false;
                             if (res.code === 200) {
-                                localStorage.setItem('token', res.data.token);
-                                localStorage.setItem('refreshToken', res.data.refresh_token);
-                                localStorage.setItem('user', JSON.stringify(res.data.user));
-                                ElMessage.success('登录成功');
+                                localStorage.setItem('admin_token', res.data.token);
+                                localStorage.setItem('admin_refresh_token', res.data.refresh_token);
+                                localStorage.setItem('admin_user', JSON.stringify(res.data.user));
+                                ElMessage.success('登录成功，欢迎回来');
                                 setTimeout(() => {
                                     window.location.href = '/admin/index';
-                                }, 500);
+                                }, 400);
                             } else {
                                 ElMessage.error(res.message || '登录失败');
                             }
@@ -109,13 +166,7 @@
                 });
             };
 
-            return {
-                loginFormRef,
-                loginForm,
-                rules,
-                loading,
-                handleLogin
-            };
+            return { loginFormRef, loginForm, rules, loading, handleLogin };
         }
     });
     app.use(ElementPlus);

@@ -11,6 +11,7 @@ import com.xyj.xyjserver.vo.NewsPostVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -29,8 +30,8 @@ public class ContentController {
     @Operation(summary = "获取乡镇资讯")
     @GetMapping("/news")
     public Result<PageResult<NewsPostVO>> getNews(
-            @RequestParam(defaultValue = "1") Long page,
-            @RequestParam(defaultValue = "20") Long size) {
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Long page,
+            @Parameter(description = "每页条数", example = "20") @RequestParam(defaultValue = "20") Long size) {
         return Result.success(contentService.getNews(page, size));
     }
 
@@ -54,7 +55,7 @@ public class ContentController {
     @PostMapping("/news/{news_id}/like")
     public Result<Boolean> likeNews(
             HttpServletRequest request,
-            @PathVariable("news_id") Long newsId) {
+            @Parameter(description = "资讯ID", example = "1") @PathVariable("news_id") Long newsId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         return Result.success(contentService.likeNews(userId, newsId));
     }
@@ -66,7 +67,7 @@ public class ContentController {
     @PostMapping("/news/{news_id}/comments")
     public Result<CommentVO> commentNews(
             HttpServletRequest request,
-            @PathVariable("news_id") Long newsId,
+            @Parameter(description = "资讯ID", example = "1") @PathVariable("news_id") Long newsId,
             @Validated @RequestBody CommentDTO commentDTO) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         return Result.success(contentService.commentNews(userId, newsId, commentDTO));

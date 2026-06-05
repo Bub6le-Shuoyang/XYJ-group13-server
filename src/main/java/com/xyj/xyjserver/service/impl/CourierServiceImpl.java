@@ -47,7 +47,7 @@ public class CourierServiceImpl implements CourierService {
     public TaskVO grabTask(Long courierId, String taskId) {
         int updated = courierTaskMapper.grabTask(courierId, taskId);
         if (updated <= 0) {
-            throw new BusinessException(ResultCode.VALIDATE_FAILED, "任务不存在或已被其他骑手抢单");
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "任务不存在或已被其他配送员抢单");
         }
         courierTaskMapper.assignPackage(courierId, taskId);
         return courierTaskMapper.findTaskByNo(taskId);
@@ -57,7 +57,7 @@ public class CourierServiceImpl implements CourierService {
     public TaskVO pickupTask(Long courierId, String taskId) {
         int updated = courierTaskMapper.pickupTask(courierId, taskId);
         if (updated <= 0) {
-            throw new BusinessException(ResultCode.VALIDATE_FAILED, "任务不存在、状态不可取件或不属于当前骑手");
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "任务不存在、状态不可取件或不属于当前配送员");
         }
         return courierTaskMapper.findTaskByNo(taskId);
     }
@@ -71,7 +71,7 @@ public class CourierServiceImpl implements CourierService {
                 deliverDTO.getRemark()
         );
         if (updated <= 0) {
-            throw new BusinessException(ResultCode.VALIDATE_FAILED, "任务不存在、状态不可送达或不属于当前骑手");
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "任务不存在、状态不可送达或不属于当前配送员");
         }
         return courierTaskMapper.findTaskByNo(taskId);
     }
@@ -80,7 +80,7 @@ public class CourierServiceImpl implements CourierService {
     public TaskVO verifyPickupCode(Long courierId, String taskId, VerifyPickupCodeDTO verifyDTO) {
         int updated = courierTaskMapper.verifyPickupCode(courierId, taskId, verifyDTO.getPickupCode());
         if (updated <= 0) {
-            throw new BusinessException(ResultCode.VALIDATE_FAILED, "取件码错误、任务不存在或不属于当前骑手");
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "取件码错误、任务不存在或不属于当前配送员");
         }
         courierTaskMapper.insertEarningIfAbsent(courierId, taskId);
         return courierTaskMapper.findTaskByNo(taskId);

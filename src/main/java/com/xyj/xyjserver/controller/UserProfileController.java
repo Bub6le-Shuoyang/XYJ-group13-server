@@ -9,6 +9,7 @@ import com.xyj.xyjserver.vo.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -62,9 +63,9 @@ public class UserProfileController {
     @GetMapping("/coupons")
     public Result<PageResult<CouponVO>> getCoupons(
             HttpServletRequest request,
-            @RequestParam(defaultValue = "AVAILABLE") String status,
-            @RequestParam(defaultValue = "1") Long page,
-            @RequestParam(defaultValue = "10") Long size) {
+            @Parameter(description = "优惠券状态", example = "AVAILABLE") @RequestParam(defaultValue = "AVAILABLE") String status,
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Long page,
+            @Parameter(description = "每页条数", example = "10") @RequestParam(defaultValue = "10") Long size) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         return Result.success(userProfileService.getCoupons(userId, status, page, size));
     }
@@ -76,8 +77,8 @@ public class UserProfileController {
     @GetMapping("/wallet/transactions")
     public Result<PageResult<WalletTransactionVO>> getWalletTransactions(
             HttpServletRequest request,
-            @RequestParam(defaultValue = "1") Long page,
-            @RequestParam(defaultValue = "10") Long size) {
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Long page,
+            @Parameter(description = "每页条数", example = "10") @RequestParam(defaultValue = "10") Long size) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         return Result.success(userProfileService.getWalletTransactions(userId, page, size));
     }
@@ -88,8 +89,8 @@ public class UserProfileController {
     @Operation(summary = "获取积分商城权益")
     @GetMapping("/mall/items")
     public Result<PageResult<MallItemVO>> getMallItems(
-            @RequestParam(defaultValue = "1") Long page,
-            @RequestParam(defaultValue = "20") Long size) {
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Long page,
+            @Parameter(description = "每页条数", example = "20") @RequestParam(defaultValue = "20") Long size) {
         return Result.success(userProfileService.getMallItems(page, size));
     }
 
@@ -100,7 +101,7 @@ public class UserProfileController {
     @PostMapping("/mall/items/{item_id}/redeem")
     public Result<RedeemRecordVO> redeemMallItem(
             HttpServletRequest request,
-            @PathVariable("item_id") Long itemId) {
+            @Parameter(description = "商品ID", example = "1") @PathVariable("item_id") Long itemId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         return Result.success(userProfileService.redeemMallItem(userId, itemId));
     }
@@ -112,8 +113,8 @@ public class UserProfileController {
     @GetMapping("/mall/redeem-records")
     public Result<PageResult<RedeemRecordVO>> getRedeemRecords(
             HttpServletRequest request,
-            @RequestParam(defaultValue = "1") Long page,
-            @RequestParam(defaultValue = "10") Long size) {
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Long page,
+            @Parameter(description = "每页条数", example = "10") @RequestParam(defaultValue = "10") Long size) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         return Result.success(userProfileService.getRedeemRecords(userId, page, size));
     }

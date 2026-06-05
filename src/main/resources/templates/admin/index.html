@@ -2,647 +2,2284 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>乡村驿站 - 管理后台</title>
-    <!-- Vue 3 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>乡驿家 - 管理后台</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <!-- Element Plus CSS -->
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-    <!-- Element Plus JS -->
     <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script th:inline="none">
+    // Self-contained Markdown parser — no external dependencies
+    window.__mdRender = (function() {
+        function escHtml(s) {
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+        function inlineFmt(s) {
+            // inline code
+            s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+            // images
+            s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%">');
+            // links
+            s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            // bold
+            s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // italic
+            s = s.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+            // strikethrough
+            s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
+            return s;
+        }
+        return function render(text) {
+            if (!text) return '';
+            // Normalize line endings
+            text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            var lines = text.split('\n');
+            var html = [];
+            var i = 0;
+            var codeBlocks = [];
+            // 1) Extract fenced code blocks
+            while (i < lines.length) {
+                if (/^```/.test(lines[i])) {
+                    var lang = lines[i].replace(/^```\s*/, '');
+                    var code = [];
+                    i++;
+                    while (i < lines.length && !/^```/.test(lines[i])) {
+                        code.push(escHtml(lines[i]));
+                        i++;
+                    }
+                    if (i < lines.length) i++; // skip closing ```
+                    codeBlocks.push('<pre><code' + (lang ? ' class="lang-' + lang + '"' : '') + '>' + code.join('\n') + '</code></pre>');
+                    html.push('%%CB' + (codeBlocks.length - 1) + '%%');
+                } else {
+                    html.push(lines[i]);
+                    i++;
+                }
+            }
+            // Rejoin for block-level processing
+            var joined = html.join('\n');
+            // 2) Tables: find consecutive lines that look like a table
+            joined = joined.replace(/((?:^\|.+\|[ \t]*\n)+)/gm, function(block) {
+                var rows = block.trim().split('\n');
+                if (rows.length < 2) return block;
+                // Check if second row is a separator
+                var isSep = /^\|[\s\-:|]+\|$/.test(rows[1].trim());
+                if (!isSep && rows.length < 3) return block;
+                var sepIdx = isSep ? 1 : -1;
+                var out = '<table><thead><tr>';
+                var hdrCells = rows[0].split('|').filter(function(c, ci, a) { return ci > 0 && ci < a.length - 1; });
+                hdrCells.forEach(function(c) { out += '<th>' + inlineFmt(c.trim()) + '</th>'; });
+                out += '</tr></thead><tbody>';
+                var startRow = isSep ? 2 : 1;
+                for (var r = startRow; r < rows.length; r++) {
+                    if (!rows[r].trim()) continue;
+                    out += '<tr>';
+                    var cells = rows[r].split('|').filter(function(c, ci, a) { return ci > 0 && ci < a.length - 1; });
+                    cells.forEach(function(c) { out += '<td>' + inlineFmt(c.trim()) + '</td>'; });
+                    out += '</tr>';
+                }
+                out += '</tbody></table>';
+                return out;
+            });
+            // Split back into lines for other block processing
+            var processed = joined.split('\n');
+            var result = [];
+            var inUl = false, inOl = false, inBq = false;
+            for (var j = 0; j < processed.length; j++) {
+                var line = processed[j];
+                var trimmed = line.trim();
+                // Code block placeholder
+                if (/^%%CB\d+%%$/.test(trimmed)) {
+                    if (inUl) { result.push('</ul>'); inUl = false; }
+                    if (inOl) { result.push('</ol>'); inOl = false; }
+                    if (inBq) { result.push('</blockquote>'); inBq = false; }
+                    result.push(codeBlocks[parseInt(trimmed.match(/\d+/)[0])]);
+                    continue;
+                }
+                // Headings
+                var hMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+                if (hMatch) {
+                    if (inUl) { result.push('</ul>'); inUl = false; }
+                    if (inOl) { result.push('</ol>'); inOl = false; }
+                    if (inBq) { result.push('</blockquote>'); inBq = false; }
+                    var lvl = hMatch[1].length;
+                    result.push('<h' + lvl + '>' + inlineFmt(hMatch[2]) + '</h' + lvl + '>');
+                    continue;
+                }
+                // Horizontal rule
+                if (/^[-*_]{3,}\s*$/.test(trimmed)) {
+                    if (inUl) { result.push('</ul>'); inUl = false; }
+                    if (inOl) { result.push('</ol>'); inOl = false; }
+                    if (inBq) { result.push('</blockquote>'); inBq = false; }
+                    result.push('<hr>');
+                    continue;
+                }
+                // Unordered list
+                var ulMatch = trimmed.match(/^[-*+]\s+(.+)$/);
+                if (ulMatch) {
+                    if (inOl) { result.push('</ol>'); inOl = false; }
+                    if (inBq) { result.push('</blockquote>'); inBq = false; }
+                    if (!inUl) { result.push('<ul>'); inUl = true; }
+                    result.push('<li>' + inlineFmt(ulMatch[1]) + '</li>');
+                    continue;
+                }
+                // Ordered list
+                var olMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+                if (olMatch) {
+                    if (inUl) { result.push('</ul>'); inUl = false; }
+                    if (inBq) { result.push('</blockquote>'); inBq = false; }
+                    if (!inOl) { result.push('<ol>'); inOl = true; }
+                    result.push('<li>' + inlineFmt(olMatch[1]) + '</li>');
+                    continue;
+                }
+                // Blockquote
+                var bqMatch = trimmed.match(/^>\s*(.*)$/);
+                if (bqMatch) {
+                    if (inUl) { result.push('</ul>'); inUl = false; }
+                    if (inOl) { result.push('</ol>'); inOl = false; }
+                    if (!inBq) { result.push('<blockquote>'); inBq = true; }
+                    result.push('<p>' + inlineFmt(bqMatch[1]) + '</p>');
+                    continue;
+                }
+                // Close open lists/blockquotes if we hit a non-matching line
+                if (inUl) { result.push('</ul>'); inUl = false; }
+                if (inOl) { result.push('</ol>'); inOl = false; }
+                if (inBq) { result.push('</blockquote>'); inBq = false; }
+                // Table pass-through (already processed)
+                if (trimmed.startsWith('<table') || trimmed.startsWith('<thead') || trimmed.startsWith('<tbody') ||
+                    trimmed.startsWith('<tr') || trimmed.startsWith('<th') || trimmed.startsWith('<td') ||
+                    trimmed.startsWith('</t')) {
+                    result.push(trimmed);
+                    continue;
+                }
+                // Empty line
+                if (!trimmed) {
+                    result.push('');
+                    continue;
+                }
+                // Regular paragraph
+                result.push('<p>' + inlineFmt(trimmed) + '</p>');
+            }
+            // Close any remaining open tags
+            if (inUl) result.push('</ul>');
+            if (inOl) result.push('</ol>');
+            if (inBq) result.push('</blockquote>');
+            return result.join('\n');
+        };
+    })();
+    </script>
+    <script type="text/javascript">
+        window._AMapSecurityConfig = {
+            securityJsCode: 'b857d9434164809b5490808f5ced3e93'
+        };
+    </script>
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=bba0da8b9d68b88dfd30c470fdb26f97"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f0f2f5; }
-        #app { height: 100%; display: flex; flex-direction: column; }
-        .el-container { height: 100%; }
-        .el-header { background-color: #fff; color: #333; line-height: 60px; display: flex; justify-content: space-between; border-bottom: 1px solid #ebeef5; box-shadow: 0 1px 4px rgba(0,21,41,.08); z-index: 10; padding: 0 20px;}
-        .el-aside { background-color: #001529; color: #fff; transition: width 0.3s; }
-        .el-main { background-color: #f0f2f5; padding: 20px; }
-        .logo { height: 60px; line-height: 60px; text-align: center; font-size: 20px; font-weight: bold; background: #002140; color: #fff; white-space: nowrap; overflow: hidden; }
-        .header-right { display: flex; align-items: center; cursor: pointer; }
-        .header-right .el-dropdown-link { display: flex; align-items: center; color: #333; }
-        .header-right .el-avatar { margin-right: 10px; }
-        .page-header { margin-bottom: 20px; font-size: 20px; font-weight: 500; }
-        
-        .el-menu-vertical { border-right: none; }
-        .el-menu-vertical:not(.el-menu--collapse) { width: 250px; }
-        
-        .stat-card { text-align: center; padding: 20px 0; }
-        .stat-value { font-size: 28px; font-weight: bold; color: #1890ff; margin-top: 10px; }
-        
+        *, *::before, *::after { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; }
+        #app { height: 100%; }
+        /* Layout */
+        .layout { display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 240px; background: #1d1e2c; display: flex; flex-direction: column; transition: width 0.3s; flex-shrink: 0; }
+        .sidebar.collapsed { width: 64px; }
+        .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #f5f6fa; }
+        /* Sidebar */
+        .sidebar-brand { height: 64px; display: flex; align-items: center; padding: 0 20px; background: #16172a; gap: 12px; flex-shrink: 0; overflow: hidden; white-space: nowrap; }
+        .brand-logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .brand-logo svg { width: 18px; height: 18px; fill: #fff; }
+        .brand-text { color: #fff; font-size: 17px; font-weight: 700; letter-spacing: 1px; }
+        .sidebar-menu { flex: 1; padding: 12px 0; overflow-y: auto; }
+        .menu-item { display: flex; align-items: center; height: 48px; padding: 0 20px; gap: 12px; cursor: pointer; color: #8e8ea0; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; margin: 2px 0; }
+        .menu-item:hover { color: #c8c8d8; background: rgba(255,255,255,0.04); }
+        .menu-item.active { color: #fff; background: rgba(102,126,234,0.15); border-left-color: #667eea; }
+        .menu-item svg { width: 20px; height: 20px; flex-shrink: 0; }
+        .menu-group-title { display: flex; align-items: center; height: 48px; padding: 0 20px; gap: 12px; cursor: pointer; color: #8e8ea0; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; margin: 2px 0; user-select: none; }
+        .menu-group-title:hover { color: #c8c8d8; background: rgba(255,255,255,0.04); }
+        .menu-group-title.active-group { color: #a0a0c0; }
+        .menu-group-title svg { width: 20px; height: 20px; flex-shrink: 0; }
+        .menu-group-arrow { margin-left: auto; transition: transform 0.25s; width: 16px; height: 16px; }
+        .menu-group-arrow.expanded { transform: rotate(90deg); }
+        .sub-menu { overflow: hidden; transition: max-height 0.3s ease; }
+        .sub-menu.collapsed { max-height: 0; }
+        .sub-menu.expanded { max-height: 600px; }
+        .menu-item.sub { height: 40px; padding-left: 52px; font-size: 13px; }
+        .sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }
+        .collapse-btn { display: flex; align-items: center; gap: 8px; color: #666; font-size: 13px; cursor: pointer; padding: 8px; border-radius: 6px; transition: all 0.2s; }
+        .collapse-btn:hover { color: #999; background: rgba(255,255,255,0.04); }
+        /* Header */
+        .top-header { height: 64px; background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid #eee; flex-shrink: 0; }
+        .header-title { font-size: 16px; color: #333; font-weight: 500; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .user-info { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 12px; border-radius: 8px; transition: background 0.2s; }
+        .user-info:hover { background: #f5f5f5; }
+        .user-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; font-weight: 600; }
+        .user-name { font-size: 14px; color: #333; }
+        /* Main Content */
+        .content-area { flex: 1; overflow-y: auto; padding: 24px; }
+        /* Stats Cards */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: #fff; border-radius: 12px; padding: 24px; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .stat-card::after { content: ''; position: absolute; top: 0; right: 0; width: 80px; height: 80px; border-radius: 50%; opacity: 0.08; transform: translate(20px, -20px); }
+        .stat-card.blue::after { background: #667eea; }
+        .stat-card.green::after { background: #52c41a; }
+        .stat-card.orange::after { background: #faad14; }
+        .stat-card.purple::after { background: #722ed1; }
+        .stat-label { font-size: 13px; color: #999; margin-bottom: 8px; }
+        .stat-value { font-size: 32px; font-weight: 700; line-height: 1; }
+        .stat-value.blue { color: #667eea; }
+        .stat-value.green { color: #52c41a; }
+        .stat-value.orange { color: #faad14; }
+        .stat-value.purple { color: #722ed1; }
+        .stat-footer { font-size: 12px; color: #bbb; margin-top: 8px; }
+        /* Panel */
+        .panel { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-bottom: 20px; }
+        .panel-header { padding: 18px 24px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+        .panel-title { font-size: 15px; font-weight: 600; color: #333; }
+        .panel-body { padding: 20px 24px; }
+        /* Toolbar */
+        .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+        /* Table */
+        .el-table { border-radius: 8px; overflow: hidden; }
+        .el-table th.el-table__cell { background: #fafbfc; color: #666; font-weight: 600; }
+        /* Pagination */
+        .pager { margin-top: 16px; display: flex; justify-content: flex-end; }
+        /* Status Tags */
+        .status-tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; }
+        .status-pending { background: #fff7e6; color: #d48806; }
+        .status-instock { background: #f6ffed; color: #389e0d; }
+        .status-published { background: #e6f7ff; color: #096dd9; }
+        .status-delivering { background: #f9f0ff; color: #722ed1; }
+        .status-completed { background: #f0f0f0; color: #666; }
+        /* Dropdown */
+        .dropdown-menu { position: absolute; right: 0; top: 100%; background: #fff; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); padding: 4px 0; min-width: 140px; z-index: 1000; }
+        .dropdown-item { padding: 10px 16px; font-size: 14px; color: #333; cursor: pointer; transition: background 0.2s; }
+        .dropdown-item:hover { background: #f5f5f5; }
+        .dropdown-item.danger { color: #e74c3c; }
+        .dropdown-divider { height: 1px; background: #f0f0f0; margin: 4px 0; }
+        .overlay { position: fixed; inset: 0; z-index: 999; }
+        /* Dialog overrides */
+        .el-dialog { border-radius: 12px; }
+        .el-dialog__header { padding: 20px 24px 10px; }
+        .el-dialog__body { padding: 10px 24px 20px; }
         /* Utility */
-        .mb-20 { margin-bottom: 20px; }
-        .mr-10 { margin-right: 10px; }
-        .search-bar { background: #fff; padding: 18px; border-radius: 4px; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;}
-        .table-container { background: #fff; padding: 20px; border-radius: 4px; }
-        .pagination-container { margin-top: 20px; display: flex; justify-content: flex-end; }
+        .text-muted { color: #999; }
+        .text-sm { font-size: 13px; }
+
+        /* === AI Center Sci-Fi Theme (Brightened) === */
+        .ai-page { background: linear-gradient(135deg, #0f1545 0%, #1a2168 40%, #141b58 70%, #0f1545 100%); min-height: calc(100vh - 64px); margin: -24px; padding: 24px; color: #e0e0f8; position: relative; overflow: hidden; }
+        .ai-page::before { content: ''; position: absolute; inset: 0; background:
+            radial-gradient(ellipse at 15% 45%, rgba(0,212,255,0.12) 0%, transparent 55%),
+            radial-gradient(ellipse at 85% 20%, rgba(123,97,255,0.10) 0%, transparent 45%),
+            radial-gradient(ellipse at 55% 85%, rgba(0,180,255,0.08) 0%, transparent 40%),
+            radial-gradient(circle at 50% 50%, rgba(0,212,255,0.03) 0%, transparent 70%);
+            pointer-events: none; z-index: 0; }
+        .ai-page::after { content: ''; position: absolute; inset: 0; background-image:
+            linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+            background-size: 60px 60px; pointer-events: none; z-index: 0; animation: gridDrift 20s linear infinite; }
+        .ai-page > * { position: relative; z-index: 1; }
+        @keyframes gridDrift { 0%{transform:translate(0,0);} 100%{transform:translate(60px,60px);} }
+        @keyframes glowPulse { 0%,100%{box-shadow:0 0 15px rgba(0,212,255,0.15),0 0 30px rgba(0,212,255,0.05);} 50%{box-shadow:0 0 30px rgba(0,212,255,0.35),0 0 60px rgba(0,212,255,0.12);} }
+        @keyframes borderGlow { 0%,100%{border-color:rgba(0,212,255,0.20);} 50%{border-color:rgba(0,212,255,0.55);} }
+        @keyframes scanLine { 0%{top:-100%;} 100%{top:200%;} }
+        @keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-5px);} }
+        @keyframes typewriterDot { 0%,100%{opacity:1;} 50%{opacity:0;} }
+        @keyframes slideUp { from{opacity:0;transform:translateY(16px);} to{opacity:1;transform:translateY(0);} }
+        @keyframes shimmer { 0%{background-position:-200% 0;} 100%{background-position:200% 0;} }
+        @keyframes neonBreath { 0%,100%{opacity:0.5;} 50%{opacity:1;} }
+        .ai-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+        .ai-title-wrap { display:flex; align-items:center; gap:14px; }
+        .ai-badge { width:52px; height:52px; border-radius:14px; background:linear-gradient(135deg,#00d4ff,#7b61ff); display:flex; align-items:center; justify-content:center; animation:float 3s ease-in-out infinite; box-shadow:0 0 25px rgba(0,212,255,0.4), 0 0 50px rgba(123,97,255,0.15); }
+        .ai-badge svg { width:28px; height:28px; fill:#fff; }
+        .ai-title { font-size:24px; font-weight:700; background:linear-gradient(90deg,#00d4ff,#7b61ff,#00e5ff,#7b61ff); background-size:300% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; animation:shimmer 4s linear infinite; text-shadow:0 0 30px rgba(0,212,255,0.3); }
+        .ai-subtitle { font-size:13px; color:rgba(180,180,240,0.7); margin-top:2px; }
+        .ai-status { display:flex; align-items:center; gap:8px; background:rgba(0,212,255,0.10); border:1px solid rgba(0,212,255,0.30); border-radius:20px; padding:6px 16px; font-size:13px; color:#b0d0ff; }
+        .ai-status-dot { width:8px; height:8px; border-radius:50%; background:#00d4ff; box-shadow:0 0 10px #00d4ff, 0 0 20px rgba(0,212,255,0.3); animation:glowPulse 2s infinite; }
+        .ai-stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:24px; }
+        .ai-stat-card { background:rgba(22,28,75,0.80); border:1px solid rgba(0,212,255,0.20); border-radius:12px; padding:18px; position:relative; overflow:hidden; animation:borderGlow 3s ease-in-out infinite, slideUp .5s ease-out both; backdrop-filter:blur(10px); cursor:default; transition:transform .25s,box-shadow .25s; }
+        .ai-stat-card:nth-child(1){animation-delay:0s;} .ai-stat-card:nth-child(2){animation-delay:.08s;} .ai-stat-card:nth-child(3){animation-delay:.16s;} .ai-stat-card:nth-child(4){animation-delay:.24s;} .ai-stat-card:nth-child(5){animation-delay:.32s;}
+        .ai-stat-card::after { content:''; position:absolute; left:0; width:100%; height:1px; background:linear-gradient(90deg,transparent,rgba(0,212,255,0.6),transparent); animation:scanLine 4s linear infinite; pointer-events:none; }
+        .ai-stat-card:hover { transform:translateY(-4px); box-shadow:0 8px 30px rgba(0,212,255,0.20), 0 0 15px rgba(0,212,255,0.08); }
+        .ai-stat-label { font-size:12px; color:rgba(180,180,240,0.65); margin-bottom:6px; text-transform:uppercase; letter-spacing:1px; }
+        .ai-stat-value { font-size:30px; font-weight:700; color:#00d4ff; font-variant-numeric:tabular-nums; text-shadow:0 0 15px rgba(0,212,255,0.3); }
+        .ai-stat-bar { margin-top:10px; height:3px; background:rgba(0,212,255,0.10); border-radius:2px; overflow:hidden; }
+        .ai-stat-bar-fill { height:100%; background:linear-gradient(90deg,#00d4ff,#7b61ff); border-radius:2px; transition:width 1.5s ease-out; box-shadow:0 0 6px rgba(0,212,255,0.4); }
+        .ai-main { display:grid; grid-template-columns:1fr 360px; gap:16px; }
+        .ai-chat-panel { background:rgba(22,28,75,0.70); border:1px solid rgba(0,212,255,0.18); border-radius:16px; display:flex; flex-direction:column; height:520px; overflow:hidden; backdrop-filter:blur(10px); box-shadow:0 4px 30px rgba(0,0,0,0.3); }
+        .ai-chat-header { padding:16px 20px; border-bottom:1px solid rgba(0,212,255,0.12); display:flex; align-items:center; gap:10px; }
+        .ai-chat-icon { width:32px; height:32px; border-radius:10px; background:linear-gradient(135deg,#00d4ff,#7b61ff); display:flex; align-items:center; justify-content:center; box-shadow:0 0 10px rgba(0,212,255,0.3); }
+        .ai-chat-icon svg { width:18px; height:18px; fill:#fff; }
+        .ai-chat-title { font-size:15px; font-weight:600; color:#e8e8ff; }
+        .ai-chat-messages { flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:12px; }
+        .ai-chat-messages::-webkit-scrollbar { width:4px; }
+        .ai-chat-messages::-webkit-scrollbar-thumb { background:rgba(0,212,255,0.30); border-radius:2px; }
+        .ai-msg { max-width:88%; padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.7; animation:slideUp .3s ease-out; word-break:break-word; }
+        .ai-msg.user { align-self:flex-end; background:linear-gradient(135deg,#00d4ff,#7b61ff); color:#fff; border-bottom-right-radius:4px; box-shadow:0 2px 12px rgba(0,212,255,0.25); }
+        .ai-msg.assistant { align-self:flex-start; background:rgba(10,18,60,0.60); border:1px solid rgba(0,212,255,0.15); color:#d0d0f0; border-bottom-left-radius:4px; }
+        .ai-typing { display:flex; gap:4px; padding:12px 16px; align-self:flex-start; }
+        .ai-typing span { width:6px; height:6px; border-radius:50%; background:#00d4ff; animation:float 1.2s ease-in-out infinite; }
+        .ai-typing span:nth-child(2){animation-delay:.2s;} .ai-typing span:nth-child(3){animation-delay:.4s;}
+        .ai-chat-input { padding:14px 16px; border-top:1px solid rgba(0,212,255,0.12); display:flex; gap:10px; }
+        .ai-chat-input input { flex:1; background:rgba(0,0,0,0.30); border:1px solid rgba(0,212,255,0.20); border-radius:10px; padding:10px 14px; color:#e8e8ff; font-size:14px; outline:none; transition:border-color .3s; }
+        .ai-chat-input input:focus { border-color:rgba(0,212,255,0.55); box-shadow:0 0 12px rgba(0,212,255,0.15); }
+        .ai-chat-input input::placeholder { color:rgba(180,180,240,0.40); }
+        .ai-send-btn { width:40px; height:40px; border-radius:10px; background:linear-gradient(135deg,#00d4ff,#7b61ff); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform .2s,box-shadow .2s; flex-shrink:0; box-shadow:0 2px 10px rgba(0,212,255,0.25); }
+        .ai-send-btn:hover { transform:scale(1.08); box-shadow:0 0 20px rgba(0,212,255,0.5); }
+        .ai-send-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none; }
+        .ai-send-btn svg { width:18px; height:18px; fill:#fff; }
+        .ai-sidebar { display:flex; flex-direction:column; gap:14px; max-height:520px; }
+        .ai-quick-panel { background:rgba(22,28,75,0.70); border:1px solid rgba(0,212,255,0.18); border-radius:14px; padding:18px; backdrop-filter:blur(10px); flex-shrink:0; }
+        .ai-quick-title { font-size:14px; font-weight:600; color:#e8e8ff; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+        .ai-quick-title::before { content:''; width:3px; height:14px; background:linear-gradient(180deg,#00d4ff,#7b61ff); border-radius:2px; }
+        .ai-quick-btn { display:block; width:100%; text-align:left; padding:10px 12px; margin-bottom:6px; background:rgba(0,212,255,0.05); border:1px solid rgba(0,212,255,0.10); border-radius:8px; color:#b0b0e8; font-size:13px; cursor:pointer; transition:all .25s; }
+        .ai-quick-btn:hover { background:rgba(0,212,255,0.15); border-color:rgba(0,212,255,0.35); color:#00d4ff; transform:translateX(4px); }
+        .ai-quick-btn:last-child { margin-bottom:0; }
+        .ai-insight-panel { background:rgba(22,28,75,0.70); border:1px solid rgba(0,212,255,0.18); border-radius:14px; padding:0; flex:1; min-height:0; backdrop-filter:blur(10px); display:flex; flex-direction:column; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.2); }
+        .ai-insight-panel .ai-quick-title { padding:16px 18px 10px; margin-bottom:0; flex-shrink:0; }
+        .ai-insight-content { font-size:13px; line-height:1.8; color:#b8b8e8; flex:1; overflow-y:auto; padding:0 18px 16px; min-height:0; }
+        .ai-insight-content::-webkit-scrollbar { width:4px; }
+        .ai-insight-content::-webkit-scrollbar-thumb { background:rgba(0,212,255,0.25); border-radius:2px; }
+        .menu-item.ai-menu { background:rgba(0,212,255,0.04); border-left-color:transparent; }
+        .menu-item.ai-menu:hover { background:rgba(0,212,255,0.10); }
+        .menu-item.ai-menu.active { background:rgba(0,212,255,0.15); border-left-color:#00d4ff; }
+        .menu-item.ai-menu svg { filter:drop-shadow(0 0 4px rgba(0,212,255,0.5)); }
+
+        /* === AI Markdown Rendered Content === */
+        .ai-msg.assistant h1, .ai-msg.assistant h2, .ai-msg.assistant h3,
+        .ai-msg.assistant h4, .ai-msg.assistant h5, .ai-msg.assistant h6,
+        .ai-insight-content h1, .ai-insight-content h2, .ai-insight-content h3,
+        .ai-insight-content h4, .ai-insight-content h5, .ai-insight-content h6 {
+            color:#00d4ff; margin:12px 0 6px; line-height:1.4; font-weight:600;
+        }
+        .ai-msg.assistant h1, .ai-insight-content h1 { font-size:18px; }
+        .ai-msg.assistant h2, .ai-insight-content h2 { font-size:16px; }
+        .ai-msg.assistant h3, .ai-insight-content h3 { font-size:15px; }
+        .ai-msg.assistant h4, .ai-msg.assistant h5, .ai-msg.assistant h6,
+        .ai-insight-content h4, .ai-insight-content h5, .ai-insight-content h6 { font-size:14px; }
+        .ai-msg.assistant p, .ai-insight-content p { margin:6px 0; }
+        .ai-msg.assistant ul, .ai-msg.assistant ol,
+        .ai-insight-content ul, .ai-insight-content ol { padding-left:20px; margin:6px 0; }
+        .ai-msg.assistant li, .ai-insight-content li { margin:3px 0; }
+        .ai-msg.assistant li::marker, .ai-insight-content li::marker { color:#00d4ff; }
+        .ai-msg.assistant code, .ai-insight-content code {
+            background:rgba(0,212,255,0.12); padding:1px 5px; border-radius:3px;
+            font-family:'Fira Code','Consolas',monospace; font-size:12.5px; color:#7ee8fa;
+        }
+        .ai-msg.assistant pre, .ai-insight-content pre {
+            background:rgba(0,0,0,0.40); border:1px solid rgba(0,212,255,0.15);
+            border-radius:8px; padding:12px; margin:8px 0; overflow-x:auto;
+        }
+        .ai-msg.assistant pre code, .ai-insight-content pre code {
+            background:transparent; padding:0; color:#d0d0f0; font-size:12px; line-height:1.6;
+        }
+        .ai-msg.assistant strong, .ai-insight-content strong { color:#f0f0ff; font-weight:600; }
+        .ai-msg.assistant em, .ai-insight-content em { color:#c0c0f0; }
+        .ai-msg.assistant blockquote, .ai-insight-content blockquote {
+            border-left:3px solid rgba(0,212,255,0.50); padding:6px 12px; margin:8px 0;
+            background:rgba(0,212,255,0.06); border-radius:0 6px 6px 0; color:#b0b0e8;
+        }
+        .ai-msg.assistant blockquote p, .ai-insight-content blockquote p { margin:2px 0; }
+        .ai-msg.assistant table, .ai-insight-content table {
+            border-collapse:collapse; width:100%; margin:8px 0; font-size:13px;
+        }
+        .ai-msg.assistant th, .ai-insight-content th {
+            background:rgba(0,212,255,0.12); border:1px solid rgba(0,212,255,0.20);
+            padding:6px 10px; text-align:left; color:#00d4ff; font-weight:600;
+        }
+        .ai-msg.assistant td, .ai-insight-content td {
+            border:1px solid rgba(0,212,255,0.10); padding:6px 10px; color:#d0d0f0;
+        }
+        .ai-msg.assistant tr:nth-child(even), .ai-insight-content tr:nth-child(even) {
+            background:rgba(0,212,255,0.04);
+        }
+        .ai-msg.assistant hr, .ai-insight-content hr {
+            border:none; border-top:1px solid rgba(0,212,255,0.20); margin:12px 0;
+        }
+        .ai-msg.assistant a, .ai-insight-content a {
+            color:#00d4ff; text-decoration:underline; text-underline-offset:2px;
+        }
+        .ai-msg.assistant a:hover, .ai-insight-content a:hover { color:#7ee8fa; }
     </style>
 </head>
 <body>
 <div id="app">
-    <el-container>
+    <div class="layout">
         <!-- Sidebar -->
-        <el-aside width="250px">
-            <div class="logo">乡村驿站 Admin</div>
-            <el-menu
-                :default-active="activeMenu"
-                class="el-menu-vertical"
-                background-color="#001529"
-                text-color="#a6adb4"
-                active-text-color="#fff"
-                @select="handleSelectMenu"
-            >
-                <el-menu-item index="dashboard">
-                    <span>仪表盘</span>
-                </el-menu-item>
-                <el-menu-item index="users">
-                    <span>用户管理</span>
-                </el-menu-item>
-                <el-menu-item index="packages">
-                    <span>站点包裹管理</span>
-                </el-menu-item>
-                <el-menu-item index="news">
-                    <span>乡镇资讯管理</span>
-                </el-menu-item>
-            </el-menu>
-        </el-aside>
-
-        <!-- Main Content -->
-        <el-container>
-            <el-header>
-                <div class="header-left">
-                    <span style="font-size: 18px; font-weight: 500;">乡村物流数字化综合管理平台</span>
+        <div class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+            <div class="sidebar-brand">
+                <div class="brand-logo">
+                    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 </div>
+                <span v-show="!sidebarCollapsed" class="brand-text">乡驿家</span>
+            </div>
+            <div class="sidebar-menu">
+                <div class="menu-item ai-menu" :class="{ active: activeMenu === 'ai' }" @click="switchMenu('ai')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a4 4 0 0 1 4 4v1h2a2 2 0 0 1 2 2v2h-1a3 3 0 0 0 0 6h1v2a2 2 0 0 1-2 2h-2v1a4 4 0 0 1-8 0v-1H6a2 2 0 0 1-2-2v-2h1a3 3 0 0 0 0-6H4V9a2 2 0 0 1 2-2h2V6a4 4 0 0 1 4-4z"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/></svg>
+                    <span v-show="!sidebarCollapsed">AI 中台</span>
+                </div>
+                <div class="menu-item" :class="{ active: activeMenu === 'dashboard' }" @click="switchMenu('dashboard')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    <span v-show="!sidebarCollapsed">仪表盘</span>
+                </div>
+                <div class="menu-item" :class="{ active: activeMenu === 'packages' }" @click="switchMenu('packages')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+                    <span v-show="!sidebarCollapsed">包裹管理</span>
+                </div>
+                <div class="menu-item" :class="{ active: activeMenu === 'users' }" @click="switchMenu('users')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span v-show="!sidebarCollapsed">用户管理</span>
+                </div>
+                <div class="menu-item" :class="{ active: activeMenu === 'couriers' }" @click="switchMenu('couriers')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 7 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/><path d="M5 17h14"/></svg>
+                    <span v-show="!sidebarCollapsed">配送员管理</span>
+                </div>
+                <div class="menu-item" :class="{ active: activeMenu === 'stations' }" @click="switchMenu('stations')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span v-show="!sidebarCollapsed">站点管理</span>
+                </div>
+                <div class="menu-group-title" :class="{ 'active-group': opsGroupMenus.includes(activeMenu) }" @click="opsExpanded = !opsExpanded">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+                    <span v-show="!sidebarCollapsed">运营管理</span>
+                    <svg v-show="!sidebarCollapsed" class="menu-group-arrow" :class="{ expanded: opsExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                </div>
+                <div class="sub-menu" :class="opsExpanded && !sidebarCollapsed ? 'expanded' : 'collapsed'">
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'analytics' }" @click="switchMenu('analytics')">
+                        <span>数据分析</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'oplogs' }" @click="switchMenu('oplogs')">
+                        <span>操作日志</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'news' }" @click="switchMenu('news')">
+                        <span>资讯管理</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'comments' }" @click="switchMenu('comments')">
+                        <span>评论审核</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'help' }" @click="switchMenu('help')">
+                        <span>帮助中心</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'csconfig' }" @click="switchMenu('csconfig')">
+                        <span>客服配置</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'ads' }" @click="switchMenu('ads')">
+                        <span>广告管理</span>
+                    </div>
+                </div>
+                <div class="menu-group-title" :class="{ 'active-group': economyGroupMenus.includes(activeMenu) }" @click="economyExpanded = !economyExpanded">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 6v2m0 8v2"/></svg>
+                    <span v-show="!sidebarCollapsed">用户经济</span>
+                    <svg v-show="!sidebarCollapsed" class="menu-group-arrow" :class="{ expanded: economyExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                </div>
+                <div class="sub-menu" :class="economyExpanded && !sidebarCollapsed ? 'expanded' : 'collapsed'">
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'mall' }" @click="switchMenu('mall')">
+                        <span>积分商城</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'finance' }" @click="switchMenu('finance')">
+                        <span>用户财务</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'redeem' }" @click="switchMenu('redeem')">
+                        <span>兑换记录</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'wallet' }" @click="switchMenu('wallet')">
+                        <span>钱包流水</span>
+                    </div>
+                </div>
+                <div class="menu-group-title" :class="{ 'active-group': sysGroupMenus.includes(activeMenu) }" @click="sysExpanded = !sysExpanded">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    <span v-show="!sidebarCollapsed">系统工具</span>
+                    <svg v-show="!sidebarCollapsed" class="menu-group-arrow" :class="{ expanded: sysExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                </div>
+                <div class="sub-menu" :class="sysExpanded && !sidebarCollapsed ? 'expanded' : 'collapsed'">
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'notifications' }" @click="switchMenu('notifications')">
+                        <span>系统通知</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'export' }" @click="switchMenu('export')">
+                        <span>数据导出</span>
+                    </div>
+                    <div class="menu-item sub" :class="{ active: activeMenu === 'batch' }" @click="switchMenu('batch')">
+                        <span>批量操作</span>
+                    </div>
+                </div>
+            </div>
+            <div class="sidebar-footer">
+                <div class="collapse-btn" @click="sidebarCollapsed = !sidebarCollapsed">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="{ transform: sidebarCollapsed ? 'rotate(180deg)' : '' }"><path d="M15 18l-6-6 6-6"/></svg>
+                    <span v-show="!sidebarCollapsed">收起菜单</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Area -->
+        <div class="main-area">
+            <!-- Header -->
+            <div class="top-header">
+                <div class="header-title">{{ menuTitles[activeMenu] }}</div>
                 <div class="header-right">
-                    <el-dropdown @command="handleCommand">
-                        <span class="el-dropdown-link">
-                            <el-avatar size="small" :src="currentUser.avatar_url || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'"></el-avatar>
-                            {{ currentUser.nickname || currentUser.account || '管理员' }}
-                        </span>
-                        <template #dropdown>
-                            <el-dropdown-menu>
-                                <el-dropdown-item command="profile">个人信息</el-dropdown-item>
-                                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
-                            </el-dropdown-menu>
-                        </template>
-                    </el-dropdown>
-                </div>
-            </el-header>
-
-            <el-main>
-                <!-- News Management -->
-                <div v-if="activeMenu === 'news'">
-                    <div class="page-header">乡镇资讯管理</div>
-                    <div class="search-bar">
-                        <el-button type="primary" @click="loadNews">刷新</el-button>
-                        <el-button type="success" @click="openNewsDialog()">发布资讯</el-button>
-                    </div>
-                    <div class="table-container">
-                        <el-table :data="newsList" v-loading="loading.news" border style="width: 100%">
-                            <el-table-column prop="id" label="ID" width="80"></el-table-column>
-                            <el-table-column prop="title" label="标题"></el-table-column>
-                            <el-table-column prop="tag" label="标签" width="120"></el-table-column>
-                            <el-table-column prop="is_urgent" label="是否紧急" width="100">
-                                <template #default="scope">
-                                    <el-tag :type="scope.row.is_urgent ? 'danger' : 'info'">{{ scope.row.is_urgent ? '紧急' : '普通' }}</el-tag>
-                                </template>
-                            </el-table-column>
-                            <el-table-column prop="view_count" label="浏览量" width="80"></el-table-column>
-                            <el-table-column prop="like_count" label="点赞数" width="80"></el-table-column>
-                            <el-table-column prop="created_at" label="发布时间" width="180">
-                                <template #default="scope">{{ formatDate(scope.row.created_at) }}</template>
-                            </el-table-column>
-                        </el-table>
-                        <div class="pagination-container">
-                            <el-pagination
-                                background
-                                layout="total, prev, pager, next"
-                                :total="newsTotal"
-                                :page-size="newsQuery.size"
-                                v-model:current-page="newsQuery.page"
-                                @current-change="loadNews"
-                            ></el-pagination>
+                    <div class="user-info" @click="showUserDropdown = !showUserDropdown" style="position:relative;">
+                        <div class="user-avatar">{{ (currentUser.nickname || currentUser.account || 'A').charAt(0) }}</div>
+                        <span class="user-name">{{ currentUser.nickname || currentUser.account || '管理员' }}</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                        <div v-if="showUserDropdown" class="dropdown-menu">
+                            <div class="dropdown-item" @click.stop="openProfileDialog">个人信息</div>
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-item danger" @click.stop="handleLogout">退出登录</div>
                         </div>
                     </div>
                 </div>
+            </div>
+            <div v-if="showUserDropdown" class="overlay" @click="showUserDropdown = false"></div>
 
-                <!-- Dashboard -->
-                <div v-if="activeMenu === 'dashboard'">
-                    <div class="page-header">仪表盘 / 站点统计</div>
-                    <el-row :gutter="20" class="mb-20">
-                        <el-col :span="6">
-                            <el-card shadow="hover" class="stat-card">
-                                <div>待入库包裹</div>
-                                <div class="stat-value">{{ stats.pending_inbound_count || 0 }}</div>
-                            </el-card>
-                        </el-col>
-                        <el-col :span="6">
-                            <el-card shadow="hover" class="stat-card">
-                                <div>当前在库包裹</div>
-                                <div class="stat-value" style="color: #52c41a;">{{ stats.in_stock_count || 0 }}</div>
-                            </el-card>
-                        </el-col>
-                        <el-col :span="6">
-                            <el-card shadow="hover" class="stat-card">
-                                <div>派送中包裹</div>
-                                <div class="stat-value" style="color: #faad14;">{{ stats.delivering_count || 0 }}</div>
-                            </el-card>
-                        </el-col>
-                        <el-col :span="6">
-                            <el-card shadow="hover" class="stat-card">
-                                <div>今日已出库</div>
-                                <div class="stat-value" style="color: #722ed1;">{{ stats.today_outbound || 0 }}</div>
-                            </el-card>
-                        </el-col>
-                    </el-row>
-                </div>
-
-                <!-- User Management -->
-                <div v-if="activeMenu === 'users'">
-                    <div class="page-header">用户管理</div>
-                    <div class="search-bar">
-                        <el-input v-model="userQuery.keyword" placeholder="搜索账号/手机号/昵称" style="width: 250px;" clearable @clear="loadUsers"></el-input>
-                        <el-button type="primary" @click="loadUsers">搜索</el-button>
-                        <el-button type="success" @click="openUserDialog()">新增用户</el-button>
-                    </div>
-                    <div class="table-container">
-                        <el-table :data="userList" v-loading="loading.users" border style="width: 100%">
-                            <el-table-column prop="id" label="ID" width="80"></el-table-column>
-                            <el-table-column prop="user_no" label="用户编号" width="150"></el-table-column>
-                            <el-table-column prop="account" label="登录账号" width="120"></el-table-column>
-                            <el-table-column prop="nickname" label="昵称/姓名" width="120"></el-table-column>
-                            <el-table-column prop="phone" label="手机号" width="120"></el-table-column>
-                            <el-table-column prop="role" label="角色" width="100">
-                                <template #default="scope">
-                                    <el-tag :type="scope.row.role === 'ADMIN' ? 'danger' : (scope.row.role === 'COURIER' ? 'warning' : 'success')">
-                                        {{ scope.row.role }}
-                                    </el-tag>
-                                </template>
-                            </el-table-column>
-                            <el-table-column prop="created_at" label="创建时间" width="180">
-                                <template #default="scope">
-                                    {{ formatDate(scope.row.created_at) }}
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="操作" fixed="right" width="150">
-                                <template #default="scope">
-                                    <el-button size="small" type="primary" link @click="openUserDialog(scope.row)">编辑</el-button>
-                                    <el-popconfirm title="确定要删除该用户吗？" @confirm="deleteUser(scope.row.id)">
-                                        <template #reference>
-                                            <el-button size="small" type="danger" link>删除</el-button>
-                                        </template>
-                                    </el-popconfirm>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                        <div class="pagination-container">
-                            <el-pagination
-                                background
-                                layout="total, prev, pager, next"
-                                :total="userTotal"
-                                :page-size="userQuery.size"
-                                v-model:current-page="userQuery.page"
-                                @current-change="loadUsers"
-                            ></el-pagination>
+            <!-- Content -->
+            <div class="content-area">
+                <!-- ============ AI Center ============ -->
+                <template v-if="activeMenu === 'ai'">
+                    <div class="ai-page">
+                        <div class="ai-header">
+                            <div class="ai-title-wrap">
+                                <div class="ai-badge"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4v1h2a2 2 0 0 1 2 2v2h-1a3 3 0 0 0 0 6h1v2a2 2 0 0 1-2 2h-2v1a4 4 0 0 1-8 0v-1H6a2 2 0 0 1-2-2v-2h1a3 3 0 0 0 0-6H4V9a2 2 0 0 1 2-2h2V6a4 4 0 0 1 4-4z"/></svg></div>
+                                <div><div class="ai-title">AI 智能中台</div><div class="ai-subtitle">DeepSeek-Powered · 系统智能分析与决策助手</div></div>
+                            </div>
+                            <div class="ai-status"><div class="ai-status-dot"></div><span>{{ aiLoading ? '分析中...' : 'AI 在线' }}</span></div>
+                        </div>
+                        <div class="ai-stats-row">
+                            <div class="ai-stat-card"><div class="ai-stat-label">包裹总量</div><div class="ai-stat-value">{{ aiStats.total_packages || 0 }}</div><div class="ai-stat-bar"><div class="ai-stat-bar-fill" :style="{width: Math.min(100, ((aiStats.total_packages||0)/100*10)) + '%'}"></div></div></div>
+                            <div class="ai-stat-card"><div class="ai-stat-label">今日新增</div><div class="ai-stat-value" style="color:#52c41a;">{{ aiStats.today_new || 0 }}</div><div class="ai-stat-bar"><div class="ai-stat-bar-fill" style="background:linear-gradient(90deg,#52c41a,#95de64);" :style="{width: Math.min(100, ((aiStats.today_new||0)*20)) + '%'}"></div></div></div>
+                            <div class="ai-stat-card"><div class="ai-stat-label">派送中</div><div class="ai-stat-value" style="color:#faad14;">{{ aiStats.delivering || 0 }}</div><div class="ai-stat-bar"><div class="ai-stat-bar-fill" style="background:linear-gradient(90deg,#faad14,#ffd666);" :style="{width: Math.min(100, ((aiStats.delivering||0)/Math.max(1,aiStats.total_packages||1)*100)) + '%'}"></div></div></div>
+                            <div class="ai-stat-card"><div class="ai-stat-label">注册用户</div><div class="ai-stat-value" style="color:#7b61ff;">{{ aiStats.total_users || 0 }}</div><div class="ai-stat-bar"><div class="ai-stat-bar-fill" style="background:linear-gradient(90deg,#7b61ff,#b37feb);" :style="{width: Math.min(100, ((aiStats.total_users||0)/10*10)) + '%'}"></div></div></div>
+                            <div class="ai-stat-card"><div class="ai-stat-label">活跃站点</div><div class="ai-stat-value" style="color:#ff85c0;">{{ aiStats.active_stations || 0 }}</div><div class="ai-stat-bar"><div class="ai-stat-bar-fill" style="background:linear-gradient(90deg,#ff85c0,#ffa3d7);" :style="{width: Math.min(100, ((aiStats.active_stations||0)*20)) + '%'}"></div></div></div>
+                        </div>
+                        <div class="ai-main">
+                            <div class="ai-chat-panel">
+                                <div class="ai-chat-header">
+                                    <div class="ai-chat-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                                    <div class="ai-chat-title">AI 对话助手</div>
+                                </div>
+                                <div class="ai-chat-messages" ref="aiChatBox">
+                                    <div v-for="(msg, idx) in aiMessages" :key="idx" class="ai-msg" :class="msg.role" v-html="renderMarkdown(msg.content)"></div>
+                                    <div v-if="aiLoading" class="ai-typing"><span></span><span></span><span></span></div>
+                                </div>
+                                <div class="ai-chat-input">
+                                    <input v-model="aiInput" placeholder="向 AI 提问：分析包裹趋势、运营建议..." @keyup.enter="sendAIChat" :disabled="aiLoading">
+                                    <button class="ai-send-btn" @click="sendAIChat" :disabled="aiLoading || !aiInput.trim()">
+                                        <svg viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="ai-sidebar">
+                                <div class="ai-quick-panel">
+                                    <div class="ai-quick-title">智能分析</div>
+                                    <div class="ai-quick-btn" @click="aiQuickAction('overview')">📊 系统运营总览分析</div>
+                                    <div class="ai-quick-btn" @click="aiQuickAction('package')">📦 包裹量趋势预测</div>
+                                    <div class="ai-quick-btn" @click="aiQuickAction('efficiency')">🚀 配送效率优化建议</div>
+                                    <div class="ai-quick-btn" @click="aiQuickAction('risk')">⚠️ 运营风险检测</div>
+                                    <div class="ai-quick-btn" @click="aiQuickAction('suggest')">💡 智能运营建议</div>
+                                </div>
+                                <div class="ai-insight-panel">
+                                    <div class="ai-quick-title">AI 洞察</div>
+                                    <div class="ai-insight-content" v-html="renderMarkdown(aiInsight || '点击上方按钮，AI 将基于实时数据为您生成专业分析报告...')"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </template>
 
-                <!-- Package Management -->
-                <div v-if="activeMenu === 'packages'">
-                    <div class="page-header">站点包裹管理</div>
-                    <div class="search-bar">
-                        <el-select v-model="packageQuery.status" placeholder="包裹状态" style="width: 150px;" clearable @change="loadPackages">
-                            <el-option label="待入库" value="PENDING_INBOUND"></el-option>
-                            <el-option label="在库中" value="IN_STOCK"></el-option>
-                            <el-option label="已发布任务" value="TASK_PUBLISHED"></el-option>
-                            <el-option label="派送中" value="DELIVERING"></el-option>
-                            <el-option label="已完成" value="COMPLETED"></el-option>
+                <!-- ============ Dashboard ============ -->
+                <template v-if="activeMenu === 'dashboard'">
+                    <div class="stats-row">
+                        <div class="stat-card blue">
+                            <div class="stat-label">待入库包裹</div>
+                            <div class="stat-value blue">{{ stats.pending_inbound_count || 0 }}</div>
+                            <div class="stat-footer">等待管理员入库操作</div>
+                        </div>
+                        <div class="stat-card green">
+                            <div class="stat-label">当前在库包裹</div>
+                            <div class="stat-value green">{{ stats.in_stock_count || 0 }}</div>
+                            <div class="stat-footer">已入库待发布任务</div>
+                        </div>
+                        <div class="stat-card orange">
+                            <div class="stat-label">派送中包裹</div>
+                            <div class="stat-value orange">{{ stats.delivering_count || 0 }}</div>
+                            <div class="stat-footer">配送员正在配送中</div>
+                        </div>
+                        <div class="stat-card purple">
+                            <div class="stat-label">今日已出库</div>
+                            <div class="stat-value purple">{{ stats.today_outbound || 0 }}</div>
+                            <div class="stat-footer">今日已送达包裹</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">快捷操作</div>
+                        </div>
+                        <div class="panel-body" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            <el-button type="primary" @click="switchMenu('packages')">查看包裹</el-button>
+                            <el-button @click="switchMenu('users')">管理用户</el-button>
+                            <el-button @click="switchMenu('couriers')">配送员管理</el-button>
+                            <el-button @click="switchMenu('stations')">站点管理</el-button>
+                            <el-button @click="switchMenu('news')">发布资讯</el-button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Package Management ============ -->
+                <template v-if="activeMenu === 'packages'">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">站点包裹列表</div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <el-select v-model="packageQuery.status" placeholder="包裹状态" style="width: 160px;" clearable @change="loadPackages">
+                                    <el-option label="待入库" value="PENDING_INBOUND"></el-option>
+                                    <el-option label="在库中" value="IN_STOCK"></el-option>
+                                    <el-option label="已发布任务" value="TASK_PUBLISHED"></el-option>
+                                    <el-option label="派送中" value="DELIVERING"></el-option>
+                                    <el-option label="已完成" value="COMPLETED"></el-option>
+                                </el-select>
+                                <el-button type="primary" @click="loadPackages">刷新</el-button>
+                            </div>
+                            <el-table :data="packageList" v-loading="loading.packages" style="width: 100%;" empty-text="暂无包裹数据">
+                                <el-table-column prop="package_no" label="包裹单号" width="140"></el-table-column>
+                                <el-table-column prop="item_name" label="物品名称" width="120">
+                                    <template #default="s">{{ s.row.item_name || s.row.name || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="收件人" width="100">
+                                    <template #default="s">{{ s.row.receiver_name || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="联系电话" width="120">
+                                    <template #default="s">{{ s.row.receiver_phone || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column prop="address" label="配送地址" show-overflow-tooltip min-width="160"></el-table-column>
+                                <el-table-column label="状态" width="110">
+                                    <template #default="s">
+                                        <span class="status-tag" :class="getStatusClass(s.row.status)">{{ getStatusLabel(s.row.status) }}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" fixed="right" width="220">
+                                    <template #default="s">
+                                        <el-button v-if="s.row.status === 'PENDING_INBOUND'" size="small" type="primary" link @click="openInboundDialog(s.row)">入库</el-button>
+                                        <el-button v-if="s.row.status === 'IN_STOCK'" size="small" type="primary" link @click="approvePackage(s.row.package_id || s.row.id)">审批+发布</el-button>
+                                        <el-popconfirm v-if="s.row.status === 'IN_STOCK'" title="确认直接出库？" @confirm="outboundPackage(s.row.package_id || s.row.id)">
+                                            <template #reference>
+                                                <el-button size="small" type="warning" link>直接出库</el-button>
+                                            </template>
+                                        </el-popconfirm>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="packageTotal" :page-size="packageQuery.size" v-model:current-page="packageQuery.page" @current-change="loadPackages"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ User Management ============ -->
+                <template v-if="activeMenu === 'users'">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">系统用户管理</div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <el-input v-model="userQuery.keyword" placeholder="搜索账号/手机号/昵称" style="width: 240px;" clearable @clear="loadUsers" @keyup.enter="loadUsers">
+                                    <template #prefix><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></template>
+                                </el-input>
+                                <el-button type="primary" @click="loadUsers">搜索</el-button>
+                                <el-button type="success" @click="openUserDialog()">新增用户</el-button>
+                            </div>
+                            <el-table :data="userList" v-loading="loading.users" style="width: 100%;" empty-text="暂无用户数据">
+                                <el-table-column prop="id" label="ID" width="70"></el-table-column>
+                                <el-table-column label="用户编号" width="150">
+                                    <template #default="s">{{ s.row.user_no || s.row.userNo || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="账号" width="130">
+                                    <template #default="s">{{ s.row.account || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="昵称" width="110">
+                                    <template #default="s">{{ s.row.nickname || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="手机号" width="120">
+                                    <template #default="s">{{ s.row.phone || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="角色" width="90">
+                                    <template #default="s">
+                                        <el-tag :type="s.row.role === 'ADMIN' ? 'danger' : (s.row.role === 'COURIER' ? 'warning' : '')" size="small">{{ s.row.role }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="注册时间" width="170">
+                                    <template #default="s">{{ formatDate(s.row.created_at) }}</template>
+                                </el-table-column>
+                                <el-table-column label="操作" fixed="right" width="140">
+                                    <template #default="s">
+                                        <el-button size="small" type="primary" link @click="openUserDialog(s.row)">编辑</el-button>
+                                        <el-popconfirm title="确定删除该用户？" @confirm="deleteUser(s.row.id)">
+                                            <template #reference>
+                                                <el-button size="small" type="danger" link>删除</el-button>
+                                            </template>
+                                        </el-popconfirm>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="userTotal" :page-size="userQuery.size" v-model:current-page="userQuery.page" @current-change="loadUsers"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Courier Management ============ -->
+                <template v-if="activeMenu === 'couriers'">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">配送员管理</div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <el-input v-model="courierQuery.keyword" placeholder="搜索姓名/账号/手机号" style="width: 240px;" clearable @clear="loadCouriers" @keyup.enter="loadCouriers">
+                                    <template #prefix><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></template>
+                                </el-input>
+                                <el-button type="primary" @click="loadCouriers">搜索</el-button>
+                                <el-button type="success" @click="openCourierDialog()">新增配送员</el-button>
+                            </div>
+                            <el-table :data="courierList" v-loading="loading.couriers" style="width: 100%;" empty-text="暂无配送员数据">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="编号" width="160">
+                                    <template #default="s">{{ s.row.courier_no || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="账号" width="120">
+                                    <template #default="s">{{ s.row.account || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="姓名" width="90">
+                                    <template #default="s">{{ s.row.name || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="手机号" width="120">
+                                    <template #default="s">{{ s.row.phone || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="所属站点" width="120">
+                                    <template #default="s">{{ s.row.station_name || '未分配' }}</template>
+                                </el-table-column>
+                                <el-table-column label="等级" width="140">
+                                    <template #default="s">{{ s.row.level_name || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="s">
+                                        <el-tag :type="s.row.status === 1 ? 'success' : 'danger'" size="small">{{ s.row.status === 1 ? '正常' : '禁用' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" fixed="right" width="200">
+                                    <template #default="s">
+                                        <el-button size="small" type="primary" link @click="openCourierDialog(s.row)">编辑</el-button>
+                                        <el-button size="small" :type="s.row.status === 1 ? 'warning' : 'success'" link @click="toggleCourierStatus(s.row)">
+                                            {{ s.row.status === 1 ? '禁用' : '启用' }}
+                                        </el-button>
+                                        <el-button size="small" link @click="viewCourierDetail(s.row)">业绩</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="courierTotal" :page-size="courierQuery.size" v-model:current-page="courierQuery.page" @current-change="loadCouriers"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Station Management ============ -->
+                <template v-if="activeMenu === 'stations'">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">驿站站点管理</div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <el-input v-model="stationQuery.keyword" placeholder="搜索站点名称/编号/地址" style="width: 260px;" clearable @clear="loadStations" @keyup.enter="loadStations">
+                                    <template #prefix><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></template>
+                                </el-input>
+                                <el-button type="primary" @click="loadStations">搜索</el-button>
+                                <el-button type="success" @click="openStationDialog()">新增站点</el-button>
+                            </div>
+                            <el-table :data="stationList" v-loading="loading.stations" style="width: 100%;" empty-text="暂无站点数据">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="站点编号" width="140">
+                                    <template #default="s">{{ s.row.station_no || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="站点名称" width="140">
+                                    <template #default="s"><span style="color:#667eea;cursor:pointer;" @click="showStationMap(s.row)">{{ s.row.name || '-' }}</span></template>
+                                </el-table-column>
+                                <el-table-column label="地址" show-overflow-tooltip min-width="180">
+                                    <template #default="s">{{ s.row.address || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="联系电话" width="120">
+                                    <template #default="s">{{ s.row.phone || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="营业时间" width="120">
+                                    <template #default="s">{{ s.row.opening_hours || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="s">
+                                        <el-tag :type="s.row.status === 1 ? 'success' : 'danger'" size="small">{{ s.row.status === 1 ? '启用' : '停用' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" fixed="right" width="140">
+                                    <template #default="s">
+                                        <el-button size="small" type="primary" link @click="openStationDialog(s.row)">编辑</el-button>
+                                        <el-popconfirm title="确定删除该站点？" @confirm="deleteStation(s.row.id)">
+                                            <template #reference>
+                                                <el-button size="small" type="danger" link>删除</el-button>
+                                            </template>
+                                        </el-popconfirm>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="stationTotal" :page-size="stationQuery.size" v-model:current-page="stationQuery.page" @current-change="loadStations"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ News Management ============ -->
+                <template v-if="activeMenu === 'news'">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">乡镇资讯管理</div>
+                            <el-button type="primary" size="small" @click="openNewsDialog">发布资讯</el-button>
+                        </div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <el-button @click="loadNews">刷新列表</el-button>
+                            </div>
+                            <el-table :data="newsList" v-loading="loading.news" style="width: 100%;" empty-text="暂无资讯">
+                                <el-table-column prop="id" label="ID" width="70"></el-table-column>
+                                <el-table-column label="标题" min-width="180">
+                                    <template #default="s">{{ s.row.title || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="标签" width="100">
+                                    <template #default="s">{{ s.row.tag || '-' }}</template>
+                                </el-table-column>
+                                <el-table-column label="紧急" width="80">
+                                    <template #default="s">
+                                        <el-tag v-if="s.row.is_urgent" type="danger" size="small">紧急</el-tag>
+                                        <el-tag v-else type="info" size="small">普通</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="浏览" width="70">
+                                    <template #default="s">{{ s.row.view_count || 0 }}</template>
+                                </el-table-column>
+                                <el-table-column label="点赞" width="70">
+                                    <template #default="s">{{ s.row.like_count || 0 }}</template>
+                                </el-table-column>
+                                <el-table-column label="发布时间" width="170">
+                                    <template #default="s">{{ formatDate(s.row.created_at) }}</template>
+                                </el-table-column>
+                                <el-table-column label="操作" fixed="right" width="140">
+                                    <template #default="s">
+                                        <el-button size="small" type="primary" link @click="editNewsItem(s.row)">编辑</el-button>
+                                        <el-popconfirm title="确定删除该资讯？" @confirm="deleteNewsItem(s.row.id)">
+                                            <template #reference>
+                                                <el-button size="small" type="danger" link>删除</el-button>
+                                            </template>
+                                        </el-popconfirm>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="newsTotal" :page-size="newsQuery.size" v-model:current-page="newsQuery.page" @current-change="loadNews"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Analytics Dashboard ============ -->
+                <template v-if="activeMenu === 'analytics'">
+                    <div class="toolbar" style="margin-bottom:16px;">
+                        <el-select v-model="analyticsDays" style="width:160px;" @change="loadAnalytics">
+                            <el-option label="近 7 天" :value="7"></el-option>
+                            <el-option label="近 14 天" :value="14"></el-option>
+                            <el-option label="近 30 天" :value="30"></el-option>
                         </el-select>
-                        <el-button type="primary" @click="loadPackages">刷新</el-button>
+                        <el-button type="primary" @click="loadAnalytics">刷新</el-button>
                     </div>
-                    <div class="table-container">
-                        <el-table :data="packageList" v-loading="loading.packages" border style="width: 100%">
-                            <el-table-column prop="package_id" label="包裹单号" width="120"></el-table-column>
-                            <el-table-column prop="name" label="物品名称" width="120"></el-table-column>
-                            <el-table-column prop="receiver_name" label="收件人" width="100"></el-table-column>
-                            <el-table-column prop="receiver_phone" label="联系电话" width="120"></el-table-column>
-                            <el-table-column prop="address" label="配送地址" show-overflow-tooltip></el-table-column>
-                            <el-table-column prop="status" label="状态" width="120">
-                                <template #default="scope">
-                                    <el-tag :type="getPackageStatusType(scope.row.status)">
-                                        {{ scope.row.status }}
-                                    </el-tag>
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="操作" fixed="right" width="200">
-                                <template #default="scope">
-                                    <el-button v-if="scope.row.status === 'PENDING_INBOUND'" size="small" type="success" link @click="openInboundDialog(scope.row)">入库</el-button>
-                                    <el-button v-if="scope.row.status === 'IN_STOCK'" size="small" type="primary" link @click="openPublishDialog(scope.row)">发布任务</el-button>
-                                    <el-popconfirm v-if="scope.row.status === 'IN_STOCK'" title="确认直接将该包裹出库吗？" @confirm="outboundPackage(scope.row.package_id)">
-                                        <template #reference>
-                                            <el-button size="small" type="warning" link>直接出库</el-button>
-                                        </template>
-                                    </el-popconfirm>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                        <div class="pagination-container">
-                            <el-pagination
-                                background
-                                layout="total, prev, pager, next"
-                                :total="packageTotal"
-                                :page-size="packageQuery.size"
-                                v-model:current-page="packageQuery.page"
-                                @current-change="loadPackages"
-                            ></el-pagination>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                        <div class="panel"><div class="panel-header"><div class="panel-title">包裹量趋势</div></div><div class="panel-body"><canvas id="chartPackageTrend" height="220"></canvas></div></div>
+                        <div class="panel"><div class="panel-header"><div class="panel-title">用户增长趋势</div></div><div class="panel-body"><canvas id="chartUserGrowth" height="220"></canvas></div></div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="panel"><div class="panel-header"><div class="panel-title">包裹状态分布</div></div><div class="panel-body" style="display:flex;justify-content:center;"><canvas id="chartStatusPie" height="240"></canvas></div></div>
+                        <div class="panel"><div class="panel-header"><div class="panel-title">配送员效率排行</div></div>
+                            <div class="panel-body">
+                                <el-table :data="courierEfficiency" size="small" style="width:100%;" max-height="260">
+                                    <el-table-column type="index" label="#" width="40"></el-table-column>
+                                    <el-table-column prop="name" label="姓名" width="80"></el-table-column>
+                                    <el-table-column label="已完成" width="70"><template #default="s">{{ s.row.completed }}</template></el-table-column>
+                                    <el-table-column label="进行中" width="70"><template #default="s">{{ s.row.active }}</template></el-table-column>
+                                    <el-table-column label="总任务" width="70"><template #default="s">{{ s.row.total_tasks }}</template></el-table-column>
+                                    <el-table-column label="累计收入" width="90"><template #default="s">¥{{ s.row.total_earnings }}</template></el-table-column>
+                                </el-table>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </el-main>
-        </el-container>
-    </el-container>
+                </template>
+
+                <!-- ============ Operation Logs ============ -->
+                <template v-if="activeMenu === 'oplogs'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">操作日志</div></div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <el-select v-model="oplogQuery.operation" placeholder="操作类型" clearable style="width:180px;" @change="loadOpLogs">
+                                    <el-option label="审批" value="APPROVE"></el-option>
+                                    <el-option label="入库" value="INBOUND"></el-option>
+                                    <el-option label="出库" value="OUTBOUND"></el-option>
+                                    <el-option label="删除用户" value="DELETE_USER"></el-option>
+                                    <el-option label="发布资讯" value="PUBLISH_NEWS"></el-option>
+                                    <el-option label="创建配送员" value="CREATE_COURIER"></el-option>
+                                    <el-option label="创建站点" value="CREATE_STATION"></el-option>
+                                </el-select>
+                                <el-button @click="loadOpLogs">刷新</el-button>
+                            </div>
+                            <el-table :data="oplogList" v-loading="loading.oplogs" style="width:100%;" empty-text="暂无日志">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="操作时间" width="170"><template #default="s">{{ formatDate(s.row.created_at || s.row.createdAt) }}</template></el-table-column>
+                                <el-table-column label="管理员" width="100"><template #default="s">{{ s.row.admin_name || s.row.adminName || '-' }}</template></el-table-column>
+                                <el-table-column label="操作" width="120"><template #default="s"><el-tag size="small">{{ s.row.operation }}</el-tag></template></el-table-column>
+                                <el-table-column label="目标" width="100"><template #default="s">{{ s.row.target_type || s.row.targetType || '-' }}</template></el-table-column>
+                                <el-table-column label="目标ID" width="80"><template #default="s">{{ s.row.target_id || s.row.targetId || '-' }}</template></el-table-column>
+                                <el-table-column label="详情" show-overflow-tooltip min-width="200"><template #default="s">{{ s.row.detail || '-' }}</template></el-table-column>
+                                <el-table-column label="IP" width="130"><template #default="s">{{ s.row.ip || '-' }}</template></el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="oplogTotal" :page-size="oplogQuery.size" v-model:current-page="oplogQuery.page" @current-change="loadOpLogs"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Comments Moderation ============ -->
+                <template v-if="activeMenu === 'comments'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">评论审核</div></div>
+                        <div class="panel-body">
+                            <el-table :data="commentList" v-loading="loading.comments" style="width:100%;" empty-text="暂无评论">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="所属资讯" width="180"><template #default="s">{{ s.row.post_title || '-' }}</template></el-table-column>
+                                <el-table-column label="用户" width="100"><template #default="s">{{ s.row.author || '-' }}</template></el-table-column>
+                                <el-table-column label="内容" show-overflow-tooltip min-width="200"><template #default="s">{{ s.row.content || '-' }}</template></el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="s"><el-tag :type="s.row.status === 1 ? 'success' : 'danger'" size="small">{{ s.row.status === 1 ? '正常' : '隐藏' }}</el-tag></template>
+                                </el-table-column>
+                                <el-table-column label="时间" width="170"><template #default="s">{{ formatDate(s.row.time || s.row.created_at) }}</template></el-table-column>
+                                <el-table-column label="操作" width="100">
+                                    <template #default="s">
+                                        <el-button size="small" :type="s.row.status === 1 ? 'warning' : 'success'" link @click="toggleCommentStatus(s.row)">
+                                            {{ s.row.status === 1 ? '隐藏' : '显示' }}
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="commentTotal" :page-size="commentQuery.size" v-model:current-page="commentQuery.page" @current-change="loadComments"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Help Center ============ -->
+                <template v-if="activeMenu === 'help'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">帮助中心管理</div><el-button type="success" size="small" @click="openHelpDialog()">新增条目</el-button></div>
+                        <div class="panel-body">
+                            <el-table :data="helpList" v-loading="loading.help" style="width:100%;" empty-text="暂无帮助条目">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="编号" width="140"><template #default="s">{{ s.row.helpNo || '-' }}</template></el-table-column>
+                                <el-table-column label="标题" width="200"><template #default="s">{{ s.row.title || '-' }}</template></el-table-column>
+                                <el-table-column label="内容" show-overflow-tooltip min-width="200"><template #default="s">{{ s.row.content || '-' }}</template></el-table-column>
+                                <el-table-column label="排序" width="70"><template #default="s">{{ s.row.sortOrder || 0 }}</template></el-table-column>
+                                <el-table-column label="状态" width="80"><template #default="s"><el-tag :type="s.row.status === 1 ? 'success' : 'danger'" size="small">{{ s.row.status === 1 ? '上线' : '下线' }}</el-tag></template></el-table-column>
+                                <el-table-column label="操作" width="140">
+                                    <template #default="s">
+                                        <el-button size="small" type="primary" link @click="openHelpDialog(s.row)">编辑</el-button>
+                                        <el-popconfirm title="确定删除？" @confirm="deleteHelp(s.row.id)"><template #reference><el-button size="small" type="danger" link>删除</el-button></template></el-popconfirm>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Customer Service Config ============ -->
+                <template v-if="activeMenu === 'csconfig'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">客服配置管理</div></div>
+                        <div class="panel-body">
+                            <el-form :model="csForm" label-width="100px" style="max-width:500px;">
+                                <el-form-item label="客服电话"><el-input v-model="csForm.phone" placeholder="如 400-123-4567"></el-input></el-form-item>
+                                <el-form-item label="客服微信"><el-input v-model="csForm.wechat" placeholder="如 xyj_support"></el-input></el-form-item>
+                                <el-form-item label="在线时间"><el-input v-model="csForm.onlineTime" placeholder="如 09:00-18:00"></el-input></el-form-item>
+                                <el-form-item label="状态">
+                                    <el-switch v-model="csForm.status" :active-value="1" :inactive-value="0"></el-switch>
+                                </el-form-item>
+                                <el-form-item><el-button type="primary" @click="saveCsConfig" :loading="loading.submit">保存配置</el-button></el-form-item>
+                            </el-form>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Splash Ads ============ -->
+                <template v-if="activeMenu === 'ads'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">开屏广告管理</div><el-button type="success" size="small" @click="openAdDialog()">新增广告</el-button></div>
+                        <div class="panel-body">
+                            <el-table :data="adList" v-loading="loading.ads" style="width:100%;" empty-text="暂无广告">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="编号" width="120"><template #default="s">{{ s.row.adNo || '-' }}</template></el-table-column>
+                                <el-table-column label="名称" width="150"><template #default="s">{{ s.row.name || '-' }}</template></el-table-column>
+                                <el-table-column label="图片" width="100"><template #default="s"><img v-if="s.row.imageUrl || s.row.image_url" :src="s.row.imageUrl || s.row.image_url" style="height:40px;border-radius:4px;"></template></el-table-column>
+                                <el-table-column label="跳转链接" show-overflow-tooltip min-width="150"><template #default="s">{{ s.row.targetUrl || s.row.target_url || '-' }}</template></el-table-column>
+                                <el-table-column label="权重" width="70"><template #default="s">{{ s.row.weight || 0 }}</template></el-table-column>
+                                <el-table-column label="状态" width="80"><template #default="s"><el-tag :type="s.row.status === 1 ? 'success' : 'danger'" size="small">{{ s.row.status === 1 ? '上线' : '下线' }}</el-tag></template></el-table-column>
+                                <el-table-column label="操作" width="140">
+                                    <template #default="s">
+                                        <el-button size="small" type="primary" link @click="openAdDialog(s.row)">编辑</el-button>
+                                        <el-popconfirm title="确定删除？" @confirm="deleteAd(s.row.id)"><template #reference><el-button size="small" type="danger" link>删除</el-button></template></el-popconfirm>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Mall Management ============ -->
+                <template v-if="activeMenu === 'mall'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">积分商城管理</div><el-button type="success" size="small" @click="openMallDialog()">新增商品</el-button></div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <el-input v-model="mallQuery.keyword" placeholder="搜索商品名称/编号" style="width:240px;" clearable @clear="loadMall" @keyup.enter="loadMall">
+                                    <template #prefix><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></template>
+                                </el-input>
+                                <el-button type="primary" @click="loadMall">搜索</el-button>
+                            </div>
+                            <el-table :data="mallList" v-loading="loading.mall" style="width:100%;" empty-text="暂无商品">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="商品编号" width="130"><template #default="s">{{ s.row.itemNo || '-' }}</template></el-table-column>
+                                <el-table-column label="名称" width="150"><template #default="s">{{ s.row.name || '-' }}</template></el-table-column>
+                                <el-table-column label="类型" width="80"><template #default="s">{{ s.row.type || '-' }}</template></el-table-column>
+                                <el-table-column label="积分" width="80"><template #default="s">{{ s.row.points || 0 }}</template></el-table-column>
+                                <el-table-column label="库存" width="80"><template #default="s">{{ s.row.stock || 0 }}</template></el-table-column>
+                                <el-table-column label="状态" width="80"><template #default="s"><el-tag :type="s.row.status === 1 ? 'success' : 'danger'" size="small">{{ s.row.status === 1 ? '上架' : '下架' }}</el-tag></template></el-table-column>
+                                <el-table-column label="操作" fixed="right" width="240">
+                                    <template #default="s">
+                                        <el-button size="small" type="primary" link @click="openMallDialog(s.row)">编辑</el-button>
+                                        <el-button size="small" type="warning" link @click="openStockDialog(s.row)">库存</el-button>
+                                        <el-popconfirm title="确定删除？" @confirm="deleteMallItem(s.row.id)"><template #reference><el-button size="small" type="danger" link>删除</el-button></template></el-popconfirm>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="mallTotal" :page-size="mallQuery.size" v-model:current-page="mallQuery.page" @current-change="loadMall"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ User Finance ============ -->
+                <template v-if="activeMenu === 'finance'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">用户财务管理</div></div>
+                        <div class="panel-body">
+                            <el-table :data="accountList" v-loading="loading.finance" style="width:100%;" empty-text="暂无数据">
+                                <el-table-column label="用户ID" width="80"><template #default="s">{{ s.row.user_id || s.row.userId || '-' }}</template></el-table-column>
+                                <el-table-column label="昵称" width="120"><template #default="s">{{ s.row.nickname || '-' }}</template></el-table-column>
+                                <el-table-column label="邮箱" width="160"><template #default="s">{{ s.row.email || '-' }}</template></el-table-column>
+                                <el-table-column label="积分余额" width="100"><template #default="s"><span style="color:#667eea;font-weight:600;">{{ s.row.points || 0 }}</span></template></el-table-column>
+                                <el-table-column label="账户余额" width="100"><template #default="s"><span style="color:#faad14;font-weight:600;">¥{{ s.row.balance || '0.00' }}</span></template></el-table-column>
+                                <el-table-column label="操作" fixed="right" width="280">
+                                    <template #default="s">
+                                        <el-button size="small" type="primary" link @click="openAdjustDialog('points', s.row)">调整积分</el-button>
+                                        <el-button size="small" type="warning" link @click="openAdjustDialog('balance', s.row)">调整余额</el-button>
+                                        <el-button size="small" type="success" link @click="openCouponDialog(s.row)">发券</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="accountTotal" :page-size="accountQuery.size" v-model:current-page="accountQuery.page" @current-change="loadAccounts"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Redemption Records ============ -->
+                <template v-if="activeMenu === 'redeem'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">兑换记录管理</div></div>
+                        <div class="panel-body">
+                            <el-table :data="redeemList" v-loading="loading.redeem" style="width:100%;" empty-text="暂无兑换记录">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="用户" width="120"><template #default="s">{{ s.row.user_nickname || s.row.nickname || '-' }}</template></el-table-column>
+                                <el-table-column label="商品" width="150"><template #default="s">{{ s.row.item_name || '-' }}</template></el-table-column>
+                                <el-table-column label="积分" width="80"><template #default="s">{{ s.row.points || 0 }}</template></el-table-column>
+                                <el-table-column label="状态" width="100">
+                                    <template #default="s">
+                                        <el-tag :type="s.row.status === 'FULFILLED' ? 'success' : (s.row.status === 'CANCELLED' ? 'danger' : 'warning')" size="small">
+                                            {{ {PENDING:'待处理', FULFILLED:'已完成', CANCELLED:'已取消'}[s.row.status] || s.row.status }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="兑换时间" width="170"><template #default="s">{{ formatDate(s.row.created_at) }}</template></el-table-column>
+                                <el-table-column label="操作" fixed="right" width="160">
+                                    <template #default="s">
+                                        <template v-if="s.row.status === 'PENDING'">
+                                            <el-button size="small" type="success" link @click="fulfillRedeem(s.row.id)">完成</el-button>
+                                            <el-button size="small" type="danger" link @click="cancelRedeem(s.row.id)">取消</el-button>
+                                        </template>
+                                        <span v-else class="text-muted">-</span>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="redeemTotal" :page-size="redeemQuery.size" v-model:current-page="redeemQuery.page" @current-change="loadRedeems"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Wallet Transactions ============ -->
+                <template v-if="activeMenu === 'wallet'">
+                    <div class="panel">
+                        <div class="panel-header"><div class="panel-title">钱包流水记录</div></div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <el-input v-model="walletQuery.userId" placeholder="按用户ID筛选" style="width:160px;" clearable @clear="loadWallet" @keyup.enter="loadWallet"></el-input>
+                                <el-select v-model="walletQuery.type" placeholder="交易类型" clearable style="width:160px;" @change="loadWallet">
+                                    <el-option label="充值" value="RECHARGE"></el-option>
+                                    <el-option label="提现" value="WITHDRAW"></el-option>
+                                    <el-option label="收入" value="INCOME"></el-option>
+                                    <el-option label="支出" value="EXPENSE"></el-option>
+                                    <el-option label="奖励" value="REWARD"></el-option>
+                                    <el-option label="调整" value="ADJUST"></el-option>
+                                </el-select>
+                                <el-button type="primary" @click="loadWallet">筛选</el-button>
+                            </div>
+                            <el-table :data="walletList" v-loading="loading.wallet" style="width:100%;" empty-text="暂无流水">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="用户" width="120"><template #default="s">{{ s.row.user_nickname || s.row.nickname || '-' }}</template></el-table-column>
+                                <el-table-column label="类型" width="100"><template #default="s"><el-tag size="small">{{ s.row.type || '-' }}</el-tag></template></el-table-column>
+                                <el-table-column label="金额" width="100"><template #default="s"><span :style="{color: (s.row.amount||0) >= 0 ? '#52c41a' : '#e74c3c', fontWeight: 600}">{{ s.row.amount || '0.00' }}</span></template></el-table-column>
+                                <el-table-column label="备注" show-overflow-tooltip min-width="180"><template #default="s">{{ s.row.remark || s.row.description || '-' }}</template></el-table-column>
+                                <el-table-column label="时间" width="170"><template #default="s">{{ formatDate(s.row.created_at) }}</template></el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="walletTotal" :page-size="walletQuery.size" v-model:current-page="walletQuery.page" @current-change="loadWallet"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Notifications ============ -->
+                <template v-if="activeMenu === 'notifications'">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">系统通知 <el-badge :value="unreadCount" :hidden="unreadCount === 0" style="margin-left:8px;"></el-badge></div>
+                            <div style="display:flex;gap:8px;">
+                                <el-button size="small" @click="markAllRead">全部已读</el-button>
+                                <el-button type="primary" size="small" @click="openNotifyDialog()">新建通知</el-button>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <el-table :data="notificationList" v-loading="loading.notifications" style="width:100%;" empty-text="暂无通知">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="标题" width="180"><template #default="s"><span :style="{fontWeight: s.row.isRead === 0 ? '700' : '400'}">{{ s.row.title || '-' }}</span></template></el-table-column>
+                                <el-table-column label="内容" show-overflow-tooltip min-width="200"><template #default="s">{{ s.row.content || '-' }}</template></el-table-column>
+                                <el-table-column label="类型" width="100"><template #default="s"><el-tag size="small">{{ s.row.type || '-' }}</el-tag></template></el-table-column>
+                                <el-table-column label="状态" width="80"><template #default="s"><el-tag :type="s.row.isRead === 1 ? 'info' : 'danger'" size="small">{{ s.row.isRead === 1 ? '已读' : '未读' }}</el-tag></template></el-table-column>
+                                <el-table-column label="时间" width="170"><template #default="s">{{ formatDate(s.row.createdAt || s.row.created_at) }}</template></el-table-column>
+                                <el-table-column label="操作" width="80">
+                                    <template #default="s">
+                                        <el-button v-if="s.row.isRead === 0" size="small" type="primary" link @click="markRead(s.row.id)">已读</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div class="pager">
+                                <el-pagination background layout="total, prev, pager, next" :total="notificationTotal" :page-size="notificationQuery.size" v-model:current-page="notificationQuery.page" @current-change="loadNotifications"></el-pagination>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Export ============ -->
+                <template v-if="activeMenu === 'export'">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="panel">
+                            <div class="panel-header"><div class="panel-title">导出包裹数据</div></div>
+                            <div class="panel-body">
+                                <p class="text-muted" style="margin:0 0 16px;">将所有包裹数据导出为 Excel (.xlsx) 文件，包含包裹单号、物品名称、收件人、状态等字段。</p>
+                                <el-button type="primary" @click="exportData('packages')">导出包裹 Excel</el-button>
+                            </div>
+                        </div>
+                        <div class="panel">
+                            <div class="panel-header"><div class="panel-title">导出用户数据</div></div>
+                            <div class="panel-body">
+                                <p class="text-muted" style="margin:0 0 16px;">将所有用户数据导出为 Excel (.xlsx) 文件，包含用户编号、邮箱、手机号、昵称、状态等字段。</p>
+                                <el-button type="primary" @click="exportData('users')">导出用户 Excel</el-button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ============ Batch Operations ============ -->
+                <template v-if="activeMenu === 'batch'">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="panel">
+                            <div class="panel-header"><div class="panel-title">批量入库</div></div>
+                            <div class="panel-body">
+                                <el-form label-width="100px">
+                                    <el-form-item label="包裹ID列表"><el-input type="textarea" v-model="batchInbound.ids" rows="4" placeholder="每行一个包裹ID，或用逗号分隔"></el-input></el-form-item>
+                                    <el-form-item label="货架前缀"><el-input v-model="batchInbound.prefix" placeholder="默认 A-" style="width:200px;"></el-input></el-form-item>
+                                    <el-form-item><el-button type="primary" @click="doBatchInbound" :loading="loading.submit">执行批量入库</el-button></el-form-item>
+                                </el-form>
+                            </div>
+                        </div>
+                        <div class="panel">
+                            <div class="panel-header"><div class="panel-title">批量审批</div></div>
+                            <div class="panel-body">
+                                <el-form label-width="100px">
+                                    <el-form-item label="包裹ID列表"><el-input type="textarea" v-model="batchApprove.ids" rows="4" placeholder="每行一个包裹ID，或用逗号分隔"></el-input></el-form-item>
+                                    <el-form-item label="奖励金额"><el-input-number v-model="batchApprove.reward" :min="0" :precision="2" style="width:200px;"></el-input-number></el-form-item>
+                                    <el-form-item><el-button type="primary" @click="doBatchApprove" :loading="loading.submit">执行批量审批</el-button></el-form-item>
+                                </el-form>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Dialogs ===== -->
+
+    <!-- Mall Item Dialog -->
+    <el-dialog :title="mallForm.id ? '编辑商品' : '新增商品'" v-model="dialogVisible.mall" width="520px" destroy-on-close>
+        <el-form :model="mallForm" label-width="80px">
+            <el-form-item label="商品编号" required><el-input v-model="mallForm.itemNo" placeholder="如 MI-001"></el-input></el-form-item>
+            <el-form-item label="名称" required><el-input v-model="mallForm.name" placeholder="商品名称"></el-input></el-form-item>
+            <el-form-item label="描述"><el-input type="textarea" v-model="mallForm.description" rows="3" placeholder="商品描述"></el-input></el-form-item>
+            <el-form-item label="类型"><el-input v-model="mallForm.type" placeholder="如 实物、优惠券、虚拟"></el-form-item>
+            <el-form-item label="积分" required><el-input-number v-model="mallForm.points" :min="0"></el-input-number></el-form-item>
+            <el-form-item label="库存"><el-input-number v-model="mallForm.stock" :min="0"></el-input-number></el-form-item>
+            <el-form-item label="图片URL"><el-input v-model="mallForm.imageUrl" placeholder="商品图片链接"></el-input></el-form-item>
+            <el-form-item label="状态"><el-switch v-model="mallForm.status" :active-value="1" :inactive-value="0"></el-switch></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.mall = false">取消</el-button>
+            <el-button type="primary" @click="submitMallForm" :loading="loading.submit">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Stock Adjust Dialog -->
+    <el-dialog title="调整库存" v-model="dialogVisible.stock" width="400px" destroy-on-close>
+        <el-form label-width="80px">
+            <el-form-item label="商品"><span style="color:#667eea;font-weight:600;">{{ stockAdjust.name }}</span></el-form-item>
+            <el-form-item label="当前库存"><span>{{ stockAdjust.currentStock }}</span></el-form-item>
+            <el-form-item label="调整量"><el-input-number v-model="stockAdjust.delta" :min="-9999"></el-input-number><div class="text-sm text-muted" style="margin-top:4px;">正数增加，负数减少</div></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.stock = false">取消</el-button>
+            <el-button type="primary" @click="submitStockAdjust" :loading="loading.submit">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Points/Balance Adjust Dialog -->
+    <el-dialog :title="adjustForm.type === 'points' ? '调整积分' : '调整余额'" v-model="dialogVisible.adjust" width="420px" destroy-on-close>
+        <el-form label-width="80px">
+            <el-form-item label="用户"><span style="color:#667eea;font-weight:600;">{{ adjustForm.nickname }}</span></el-form-item>
+            <el-form-item :label="adjustForm.type === 'points' ? '积分变动' : '余额变动'">
+                <el-input-number v-model="adjustForm.value" :precision="adjustForm.type === 'points' ? 0 : 2" style="width:100%;"></el-input-number>
+                <div class="text-sm text-muted" style="margin-top:4px;">正数增加，负数减少</div>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.adjust = false">取消</el-button>
+            <el-button type="primary" @click="submitAdjust" :loading="loading.submit">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Coupon Issue Dialog -->
+    <el-dialog title="发放优惠券" v-model="dialogVisible.coupon" width="420px" destroy-on-close>
+        <el-form :model="couponForm" label-width="80px">
+            <el-form-item label="用户"><span style="color:#667eea;font-weight:600;">{{ couponForm.nickname }}</span></el-form-item>
+            <el-form-item label="券名称" required><el-input v-model="couponForm.name" placeholder="如：满100减20"></el-input></el-form-item>
+            <el-form-item label="券金额" required><el-input-number v-model="couponForm.amount" :min="0" :precision="2" style="width:100%;"></el-input-number></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.coupon = false">取消</el-button>
+            <el-button type="primary" @click="submitCoupon" :loading="loading.submit">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Notification Create Dialog -->
+    <el-dialog title="新建系统通知" v-model="dialogVisible.notify" width="520px" destroy-on-close>
+        <el-form :model="notifyForm" label-width="80px">
+            <el-form-item label="标题" required><el-input v-model="notifyForm.title" placeholder="通知标题"></el-input></el-form-item>
+            <el-form-item label="内容"><el-input type="textarea" v-model="notifyForm.content" rows="4" placeholder="通知内容"></el-input></el-form-item>
+            <el-form-item label="类型"><el-input v-model="notifyForm.type" placeholder="如 SYSTEM、ORDER" style="width:200px;"></el-input></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.notify = false">取消</el-button>
+            <el-button type="primary" @click="submitNotify" :loading="loading.submit">确定</el-button>
+        </template>
+    </el-dialog>
 
     <!-- User Dialog -->
-    <el-dialog :title="userForm.id ? '编辑用户' : '新增用户'" v-model="dialogVisible.user" width="500px">
+    <el-dialog :title="userForm.id ? '编辑用户' : '新增用户'" v-model="dialogVisible.user" width="480px" destroy-on-close>
         <el-form :model="userForm" label-width="80px">
             <el-form-item label="登录账号" required>
-                <el-input v-model="userForm.account" :disabled="!!userForm.id"></el-input>
+                <el-input v-model="userForm.account" :disabled="!!userForm.id" placeholder="请输入登录账号"></el-input>
             </el-form-item>
             <el-form-item label="密码" :required="!userForm.id">
-                <el-input v-model="userForm.password" type="password" placeholder="为空则不修改"></el-input>
+                <el-input v-model="userForm.password" type="password" show-password placeholder="编辑时为空则不修改"></el-input>
             </el-form-item>
             <el-form-item label="昵称">
-                <el-input v-model="userForm.nickname"></el-input>
+                <el-input v-model="userForm.nickname" placeholder="用户昵称"></el-input>
             </el-form-item>
             <el-form-item label="手机号">
-                <el-input v-model="userForm.phone"></el-input>
+                <el-input v-model="userForm.phone" placeholder="手机号码"></el-input>
             </el-form-item>
             <el-form-item label="角色" required>
                 <el-select v-model="userForm.role" style="width: 100%;">
-                    <el-option label="普通用户" value="VILLAGER"></el-option>
-                    <el-option label="骑手" value="COURIER"></el-option>
-                    <el-option label="管理员" value="ADMIN"></el-option>
+                    <el-option label="普通用户 (USER)" value="USER"></el-option>
+                    <el-option label="配送员 (COURIER)" value="COURIER"></el-option>
+                    <el-option label="管理员 (ADMIN)" value="ADMIN"></el-option>
                 </el-select>
             </el-form-item>
         </el-form>
         <template #footer>
-            <span class="dialog-footer">
-                <el-button @click="dialogVisible.user = false">取 消</el-button>
-                <el-button type="primary" @click="submitUserForm" :loading="loading.submit">确 定</el-button>
-            </span>
+            <el-button @click="dialogVisible.user = false">取消</el-button>
+            <el-button type="primary" @click="submitUserForm" :loading="loading.submit">确定</el-button>
         </template>
     </el-dialog>
 
     <!-- Inbound Dialog -->
-    <el-dialog title="包裹入库" v-model="dialogVisible.inbound" width="400px">
+    <el-dialog title="包裹入库" v-model="dialogVisible.inbound" width="400px" destroy-on-close>
         <el-form :model="inboundForm" label-width="80px">
             <el-form-item label="包裹单号">
-                <span>{{ inboundForm.packageId }}</span>
+                <span style="color:#667eea; font-weight:600;">{{ inboundForm.packageId }}</span>
             </el-form-item>
-            <el-form-item label="存放货架" required>
+            <el-form-item label="货架编号" required>
                 <el-input v-model="inboundForm.shelfNumber" placeholder="例如: A-01-03"></el-input>
             </el-form-item>
         </el-form>
         <template #footer>
-            <span class="dialog-footer">
-                <el-button @click="dialogVisible.inbound = false">取 消</el-button>
-                <el-button type="primary" @click="submitInbound" :loading="loading.submit">确 定</el-button>
-            </span>
-        </template>
-    </el-dialog>
-
-    <!-- Publish Task Dialog -->
-    <el-dialog title="发布配送任务" v-model="dialogVisible.publish" width="400px">
-        <el-form :model="publishForm" label-width="80px">
-            <el-form-item label="包裹单号">
-                <span>{{ publishForm.packageId }}</span>
-            </el-form-item>
-            <el-form-item label="配送赏金" required>
-                <el-input-number v-model="publishForm.rewardAmount" :precision="2" :step="1" :min="0"></el-input-number>
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <span class="dialog-footer">
-                <el-button @click="dialogVisible.publish = false">取 消</el-button>
-                <el-button type="primary" @click="submitPublish" :loading="loading.submit">发 布</el-button>
-            </span>
+            <el-button @click="dialogVisible.inbound = false">取消</el-button>
+            <el-button type="primary" @click="submitInbound" :loading="loading.submit">确认入库</el-button>
         </template>
     </el-dialog>
 
     <!-- News Dialog -->
-    <el-dialog title="发布乡镇资讯" v-model="dialogVisible.news" width="500px">
+    <el-dialog :title="newsForm.id ? '编辑资讯' : '发布乡镇资讯'" v-model="dialogVisible.news" width="520px" destroy-on-close>
         <el-form :model="newsForm" label-width="80px">
             <el-form-item label="标题" required>
-                <el-input v-model="newsForm.title"></el-input>
+                <el-input v-model="newsForm.title" placeholder="资讯标题"></el-input>
             </el-form-item>
             <el-form-item label="标签">
-                <el-input v-model="newsForm.tag" placeholder="如：驿站动态"></el-input>
+                <el-input v-model="newsForm.tag" placeholder="如：驿站动态、政策通知"></el-input>
             </el-form-item>
             <el-form-item label="紧急通知">
                 <el-switch v-model="newsForm.is_urgent"></el-switch>
             </el-form-item>
             <el-form-item label="内容" required>
-                <el-input type="textarea" v-model="newsForm.content" rows="4"></el-input>
+                <el-input type="textarea" v-model="newsForm.content" rows="5" placeholder="资讯正文内容"></el-input>
             </el-form-item>
         </el-form>
         <template #footer>
-            <span class="dialog-footer">
-                <el-button @click="dialogVisible.news = false">取 消</el-button>
-                <el-button type="primary" @click="submitNews" :loading="loading.submit">发 布</el-button>
-            </span>
+            <el-button @click="dialogVisible.news = false">取消</el-button>
+            <el-button type="primary" @click="submitNews" :loading="loading.submit">发布</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Courier Dialog -->
+    <el-dialog :title="courierForm.id ? '编辑配送员' : '新增配送员'" v-model="dialogVisible.courier" width="500px" destroy-on-close>
+        <el-form :model="courierForm" label-width="90px">
+            <el-form-item label="登录账号" required>
+                <el-input v-model="courierForm.account" :disabled="!!courierForm.id" placeholder="配送员登录账号"></el-input>
+            </el-form-item>
+            <el-form-item label="密码" :required="!courierForm.id">
+                <el-input v-model="courierForm.password" type="password" show-password placeholder="编辑时为空则不修改"></el-input>
+            </el-form-item>
+            <el-form-item label="姓名" required>
+                <el-input v-model="courierForm.name" placeholder="配送员姓名"></el-input>
+            </el-form-item>
+            <el-form-item label="手机号">
+                <el-input v-model="courierForm.phone" placeholder="手机号码"></el-input>
+            </el-form-item>
+            <el-form-item label="所属站点">
+                <el-select v-model="courierForm.stationId" placeholder="选择所属站点" clearable style="width: 100%;">
+                    <el-option v-for="s in stationOptions" :key="s.id" :label="s.name" :value="s.id"></el-option>
+                </el-select>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.courier = false">取消</el-button>
+            <el-button type="primary" @click="submitCourierForm" :loading="loading.submit">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Courier Detail Dialog -->
+    <el-dialog title="配送员业绩详情" v-model="dialogVisible.courierDetail" width="440px">
+        <el-descriptions :column="1" border v-if="courierDetail">
+            <el-descriptions-item label="姓名">{{ courierDetail.name }}</el-descriptions-item>
+            <el-descriptions-item label="账号">{{ courierDetail.account }}</el-descriptions-item>
+            <el-descriptions-item label="等级">{{ courierDetail.level_name || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="状态">
+                <el-tag :type="courierDetail.status === 1 ? 'success' : 'danger'" size="small">{{ courierDetail.status === 1 ? '正常' : '禁用' }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="累计收入">
+                <span style="color:#faad14; font-weight:700; font-size:18px;">¥{{ courierDetail.total_earnings || '0.00' }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="已完成任务">{{ courierDetail.completed_tasks || 0 }} 单</el-descriptions-item>
+            <el-descriptions-item label="进行中任务">{{ courierDetail.active_tasks || 0 }} 单</el-descriptions-item>
+        </el-descriptions>
+    </el-dialog>
+
+    <!-- Station Dialog -->
+    <el-dialog :title="stationForm.id ? '编辑站点' : '新增站点'" v-model="dialogVisible.station" width="520px" destroy-on-close>
+        <el-form :model="stationForm" label-width="90px">
+            <el-form-item label="站点编号" required>
+                <el-input v-model="stationForm.stationNo" :disabled="!!stationForm.id" placeholder="如 ST-002"></el-input>
+            </el-form-item>
+            <el-form-item label="站点名称" required>
+                <el-input v-model="stationForm.name" placeholder="驿站名称"></el-input>
+            </el-form-item>
+            <el-form-item label="站点地址" required>
+                <el-input v-model="stationForm.address" placeholder="详细地址"></el-input>
+            </el-form-item>
+            <el-form-item label="联系电话">
+                <el-input v-model="stationForm.phone" placeholder="联系电话"></el-input>
+            </el-form-item>
+            <el-form-item label="营业时间">
+                <el-input v-model="stationForm.openingHours" placeholder="如 08:00-18:00"></el-input>
+            </el-form-item>
+            <el-form-item label="经纬度">
+                <div style="display:flex; gap:10px;">
+                    <el-input v-model="stationForm.lat" placeholder="纬度 (可选)" style="flex:1;"></el-input>
+                    <el-input v-model="stationForm.lng" placeholder="经度 (可选)" style="flex:1;"></el-input>
+                </div>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.station = false">取消</el-button>
+            <el-button type="primary" @click="submitStationForm" :loading="loading.submit">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Station Map Dialog -->
+    <el-dialog :title="'站点位置 - ' + (stationMapInfo.name || '')" v-model="dialogVisible.stationMap" width="680px" destroy-on-close @opened="initStationMap">
+        <div v-if="stationMapInfo.lat && stationMapInfo.lng">
+            <div id="stationMapContainer" style="width:100%;height:420px;border-radius:8px;border:1px solid #eee;"></div>
+            <div style="margin-top:12px;display:flex;gap:20px;font-size:13px;color:#666;">
+                <span>经度: {{ stationMapInfo.lng }}</span>
+                <span>纬度: {{ stationMapInfo.lat }}</span>
+                <span>地址: {{ stationMapInfo.address || '-' }}</span>
+            </div>
+        </div>
+        <div v-else style="text-align:center;padding:60px 0;color:#999;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5" style="margin-bottom:12px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <p>该站点暂未设置经纬度坐标</p>
+            <el-button type="primary" size="small" @click="dialogVisible.stationMap = false; openStationDialog({ id: stationMapInfo.id, station_no: stationMapInfo.station_no, name: stationMapInfo.name, address: stationMapInfo.address, phone: stationMapInfo.phone, opening_hours: stationMapInfo.opening_hours, lat: '', lng: '' })">去编辑</el-button>
+        </div>
+    </el-dialog>
+
+    <!-- Help Dialog -->
+    <el-dialog :title="helpForm.id ? '编辑帮助条目' : '新增帮助条目'" v-model="dialogVisible.help" width="520px" destroy-on-close>
+        <el-form :model="helpForm" label-width="80px">
+            <el-form-item label="标题" required><el-input v-model="helpForm.title" placeholder="问题标题"></el-input></el-form-item>
+            <el-form-item label="内容" required><el-input type="textarea" v-model="helpForm.content" rows="4" placeholder="回答内容"></el-input></el-form-item>
+            <el-form-item label="排序值"><el-input-number v-model="helpForm.sortOrder" :min="0" :max="999"></el-input-number></el-form-item>
+            <el-form-item label="状态"><el-switch v-model="helpForm.status" :active-value="1" :inactive-value="0"></el-switch></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.help = false">取消</el-button>
+            <el-button type="primary" @click="submitHelpForm" :loading="loading.submit">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Ad Dialog -->
+    <el-dialog :title="adForm.id ? '编辑广告' : '新增广告'" v-model="dialogVisible.ad" width="520px" destroy-on-close>
+        <el-form :model="adForm" label-width="80px">
+            <el-form-item label="广告名称" required><el-input v-model="adForm.name" placeholder="广告名称"></el-input></el-form-item>
+            <el-form-item label="图片URL" required><el-input v-model="adForm.imageUrl" placeholder="图片链接地址"></el-input></el-form-item>
+            <el-form-item label="跳转链接"><el-input v-model="adForm.targetUrl" placeholder="点击跳转URL（可选）"></el-input></el-form-item>
+            <el-form-item label="权重"><el-input-number v-model="adForm.weight" :min="0" :max="100"></el-input-number></el-form-item>
+            <el-form-item label="状态"><el-switch v-model="adForm.status" :active-value="1" :inactive-value="0"></el-switch></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible.ad = false">取消</el-button>
+            <el-button type="primary" @click="submitAdForm" :loading="loading.submit">确定</el-button>
         </template>
     </el-dialog>
 
     <!-- Profile Dialog -->
-    <el-dialog title="个人信息" v-model="dialogVisible.profile" width="400px">
+    <el-dialog title="个人信息" v-model="dialogVisible.profile" width="420px" destroy-on-close>
         <el-form :model="profileForm" label-width="80px" v-loading="loading.profile">
             <el-form-item label="账号">
                 <el-input v-model="profileForm.username" disabled></el-input>
             </el-form-item>
             <el-form-item label="姓名">
-                <el-input v-model="profileForm.realName"></el-input>
+                <el-input v-model="profileForm.realName" placeholder="真实姓名"></el-input>
             </el-form-item>
             <el-form-item label="手机号">
-                <el-input v-model="profileForm.phone"></el-input>
-            </el-form-item>
-            <el-form-item label="头像URL">
-                <el-input v-model="profileForm.avatarUrl"></el-input>
+                <el-input v-model="profileForm.phone" placeholder="手机号"></el-input>
             </el-form-item>
         </el-form>
         <template #footer>
-            <span class="dialog-footer">
-                <el-button @click="dialogVisible.profile = false">取 消</el-button>
-                <el-button type="primary" @click="submitProfile" :loading="loading.submit">保 存</el-button>
-            </span>
+            <el-button @click="dialogVisible.profile = false">取消</el-button>
+            <el-button type="primary" @click="submitProfile" :loading="loading.submit">保存</el-button>
         </template>
     </el-dialog>
-
 </div>
 
 <script>
-    const { createApp, ref, reactive, onMounted } = Vue;
-    const { ElMessage } = ElementPlus;
+const { createApp, ref, reactive, onMounted, computed } = Vue;
+const { ElMessage, ElMessageBox } = ElementPlus;
 
-    const app = createApp({
-        setup() {
-            // Auth Check
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/admin/login';
-            }
+const app = createApp({
+    setup() {
+        // --- Auth ---
+        const token = localStorage.getItem('admin_token');
+        if (!token) { window.location.href = '/admin/login'; }
 
-            const currentUser = ref(JSON.parse(localStorage.getItem('user') || '{}'));
-            const activeMenu = ref('dashboard');
-            
-            const req = (url, options = {}) => {
-                const headers = {
-                    'Authorization': 'Bearer ' + token,
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                };
-                return fetch(url, { ...options, headers }).then(res => res.json()).then(res => {
-                    if (res.code === 401) {
-                        ElMessage.error('登录已过期，请重新登录');
-                        localStorage.clear();
-                        window.location.href = '/admin/login';
-                        throw new Error('Unauthorized');
-                    }
-                    if (res.code !== 200) {
-                        ElMessage.error(res.message || '请求失败');
-                        throw new Error(res.message);
-                    }
-                    return res.data;
-                });
-            };
+        const currentUser = ref(JSON.parse(localStorage.getItem('admin_user') || '{}'));
+        const activeMenu = ref('dashboard');
+        const sidebarCollapsed = ref(false);
+        const showUserDropdown = ref(false);
+        const opsExpanded = ref(true);
+        const economyExpanded = ref(true);
+        const sysExpanded = ref(true);
+        const opsGroupMenus = ['analytics', 'oplogs', 'news', 'comments', 'help', 'csconfig', 'ads'];
+        const economyGroupMenus = ['mall', 'finance', 'redeem', 'wallet'];
+        const sysGroupMenus = ['notifications', 'export', 'batch'];
+        const menuTitles = { ai: 'AI 智能中台', dashboard: '仪表盘 / 数据概览', packages: '站点包裹管理', users: '系统用户管理', couriers: '配送员管理', stations: '站点管理', news: '乡镇资讯管理', analytics: '数据分析大盘', oplogs: '操作日志', comments: '评论审核', help: '帮助中心管理', csconfig: '客服配置管理', ads: '开屏广告管理', mall: '积分商城管理', finance: '用户财务管理', redeem: '兑换记录管理', wallet: '钱包流水记录', notifications: '系统通知', export: '数据导出', batch: '批量操作' };
 
-            // Dashboard
-            const stats = ref({});
-            const loadStats = () => {
-                req('/api/v1/admin/station/statistics').then(data => {
-                    stats.value = data;
-                }).catch(console.error);
-            };
-
-            // Users
-            const userList = ref([]);
-            const userTotal = ref(0);
-            const userQuery = reactive({ page: 1, size: 10, keyword: '' });
-            const loading = reactive({ users: false, packages: false, news: false, profile: false, submit: false });
-            
-            const loadUsers = () => {
-                loading.users = true;
-                let url = `/api/v1/admin/users?page=${userQuery.page}&size=${userQuery.size}`;
-                if (userQuery.keyword) url += `&keyword=${encodeURIComponent(userQuery.keyword)}`;
-                req(url).then(data => {
-                    userList.value = data.records || [];
-                    userTotal.value = data.total || 0;
-                }).finally(() => { loading.users = false; });
-            };
-
-            const dialogVisible = reactive({ user: false, inbound: false, publish: false, news: false, profile: false });
-            const userForm = reactive({ id: null, account: '', password: '', nickname: '', phone: '', role: 'VILLAGER' });
-
-            const openUserDialog = (row) => {
-                if (row) {
-                    Object.assign(userForm, { id: row.id, account: row.account, password: '', nickname: row.nickname, phone: row.phone, role: row.role });
-                } else {
-                    Object.assign(userForm, { id: null, account: '', password: '', nickname: '', phone: '', role: 'VILLAGER' });
+        const req = (url, options = {}) => {
+            const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...options.headers };
+            return fetch(url, { ...options, headers }).then(res => res.json()).then(res => {
+                if (res.code === 401) {
+                    ElMessage.error('登录已过期');
+                    localStorage.removeItem('admin_token');
+                    localStorage.removeItem('admin_refresh_token');
+                    localStorage.removeItem('admin_user');
+                    window.location.href = '/admin/login';
+                    throw new Error('Unauthorized');
                 }
-                dialogVisible.user = true;
-            };
-
-            const submitUserForm = () => {
-                if (!userForm.account || (!userForm.id && !userForm.password)) {
-                    ElMessage.warning('请填写必填项');
-                    return;
-                }
-                loading.submit = true;
-                const url = userForm.id ? `/api/v1/admin/users/${userForm.id}` : '/api/v1/admin/users';
-                const method = userForm.id ? 'PUT' : 'POST';
-                req(url, { method, body: JSON.stringify(userForm) }).then(() => {
-                    ElMessage.success(userForm.id ? '更新成功' : '创建成功');
-                    dialogVisible.user = false;
-                    loadUsers();
-                }).finally(() => { loading.submit = false; });
-            };
-
-            const deleteUser = (id) => {
-                req(`/api/v1/admin/users/${id}`, { method: 'DELETE' }).then(() => {
-                    ElMessage.success('删除成功');
-                    loadUsers();
-                });
-            };
-
-            // Packages
-            const packageList = ref([]);
-            const packageTotal = ref(0);
-            const packageQuery = reactive({ page: 1, size: 10, status: 'IN_STOCK' });
-            
-            const loadPackages = () => {
-                loading.packages = true;
-                let url = `/api/v1/admin/packages?page=${packageQuery.page}&size=${packageQuery.size}`;
-                if (packageQuery.status) url += `&status=${packageQuery.status}`;
-                req(url).then(data => {
-                    packageList.value = data.records || [];
-                    packageTotal.value = data.total || 0;
-                }).finally(() => { loading.packages = false; });
-            };
-
-            const getPackageStatusType = (status) => {
-                const map = { 'PENDING_INBOUND': 'info', 'IN_STOCK': 'success', 'TASK_PUBLISHED': 'warning', 'DELIVERING': 'primary', 'COMPLETED': 'success' };
-                return map[status] || 'info';
-            };
-
-            // Inbound
-            const inboundForm = reactive({ packageId: '', shelfNumber: '' });
-            const openInboundDialog = (row) => {
-                inboundForm.packageId = row.package_id;
-                inboundForm.shelfNumber = '';
-                dialogVisible.inbound = true;
-            };
-            const submitInbound = () => {
-                if (!inboundForm.shelfNumber) return ElMessage.warning('请填写货架号');
-                loading.submit = true;
-                req(`/api/v1/admin/packages/${inboundForm.packageId}/inbound`, {
-                    method: 'POST',
-                    body: JSON.stringify({ shelf_number: inboundForm.shelfNumber })
-                }).then(() => {
-                    ElMessage.success('入库成功');
-                    dialogVisible.inbound = false;
-                    loadPackages();
-                    loadStats();
-                }).finally(() => { loading.submit = false; });
-            };
-
-            // Outbound
-            const outboundPackage = (packageId) => {
-                req(`/api/v1/admin/packages/${packageId}/outbound`, { method: 'POST' }).then(() => {
-                    ElMessage.success('出库成功');
-                    loadPackages();
-                    loadStats();
-                });
-            };
-
-            // Publish Task
-            const publishForm = reactive({ packageId: '', rewardAmount: 5.0 });
-            const openPublishDialog = (row) => {
-                publishForm.packageId = row.package_id;
-                publishForm.rewardAmount = 5.0;
-                dialogVisible.publish = true;
-            };
-            const submitPublish = () => {
-                loading.submit = true;
-                req(`/api/v1/admin/tasks`, {
-                    method: 'POST',
-                    body: JSON.stringify({ package_id: publishForm.packageId, reward_amount: publishForm.rewardAmount })
-                }).then(() => {
-                    ElMessage.success('任务发布成功');
-                    dialogVisible.publish = false;
-                    loadPackages();
-                    loadStats();
-                }).finally(() => { loading.submit = false; });
-            };
-
-            // News Management
-            const newsList = ref([]);
-            const newsTotal = ref(0);
-            const newsQuery = reactive({ page: 1, size: 10 });
-            const newsForm = reactive({ title: '', content: '', tag: '', is_urgent: false });
-
-            const loadNews = () => {
-                loading.news = true;
-                req(`/api/v1/content/news?page=${newsQuery.page}&size=${newsQuery.size}`).then(data => {
-                    newsList.value = data.records || [];
-                    newsTotal.value = data.total || 0;
-                }).finally(() => { loading.news = false; });
-            };
-
-            const openNewsDialog = () => {
-                Object.assign(newsForm, { title: '', content: '', tag: '', is_urgent: false });
-                dialogVisible.news = true;
-            };
-
-            const submitNews = () => {
-                if (!newsForm.title || !newsForm.content) return ElMessage.warning('请填写必填项');
-                loading.submit = true;
-                req(`/api/v1/content/news`, {
-                    method: 'POST',
-                    body: JSON.stringify(newsForm)
-                }).then(() => {
-                    ElMessage.success('发布成功');
-                    dialogVisible.news = false;
-                    loadNews();
-                }).finally(() => { loading.submit = false; });
-            };
-
-            // Profile Management
-            const profileForm = reactive({ username: '', realName: '', phone: '', avatarUrl: '' });
-
-            const openProfileDialog = () => {
-                dialogVisible.profile = true;
-                loading.profile = true;
-                req(`/api/v1/admin/profile`).then(data => {
-                    Object.assign(profileForm, data);
-                }).finally(() => { loading.profile = false; });
-            };
-
-            const submitProfile = () => {
-                loading.submit = true;
-                req(`/api/v1/admin/profile`, {
-                    method: 'PUT',
-                    body: JSON.stringify(profileForm)
-                }).then(() => {
-                    ElMessage.success('保存成功');
-                    dialogVisible.profile = false;
-                    currentUser.value.nickname = profileForm.realName || profileForm.username;
-                    currentUser.value.avatar_url = profileForm.avatarUrl;
-                    localStorage.setItem('user', JSON.stringify(currentUser.value));
-                }).finally(() => { loading.submit = false; });
-            };
-
-            const handleSelectMenu = (index) => {
-                activeMenu.value = index;
-                if (index === 'dashboard') loadStats();
-                if (index === 'users') loadUsers();
-                if (index === 'packages') loadPackages();
-                if (index === 'news') loadNews();
-            };
-
-            const handleCommand = (cmd) => {
-                if (cmd === 'logout') {
-                    req('/api/v1/auth/logout', { method: 'POST' }).finally(() => {
-                        localStorage.clear();
-                        window.location.href = '/admin/login';
-                    });
-                } else if (cmd === 'profile') {
-                    openProfileDialog();
-                }
-            };
-
-            const formatDate = (dateStr) => {
-                if (!dateStr) return '-';
-                const d = new Date(dateStr);
-                return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-            };
-
-            onMounted(() => {
-                loadStats();
+                if (res.code !== 200) { ElMessage.error(res.message || '请求失败'); throw new Error(res.message); }
+                return res.data;
             });
+        };
 
-            return {
-                currentUser, activeMenu, stats, handleSelectMenu, handleCommand, formatDate,
-                userList, userTotal, userQuery, loadUsers, deleteUser, openUserDialog, submitUserForm, userForm,
-                packageList, packageTotal, packageQuery, loadPackages, getPackageStatusType,
-                dialogVisible, loading,
-                inboundForm, openInboundDialog, submitInbound,
-                outboundPackage,
-                publishForm, openPublishDialog, submitPublish,
-                newsList, newsTotal, newsQuery, loadNews, newsForm, openNewsDialog, submitNews,
-                profileForm, openProfileDialog, submitProfile
+        // --- Loading States ---
+        const loading = reactive({ users: false, packages: false, news: false, couriers: false, stations: false, profile: false, submit: false, oplogs: false, comments: false, help: false, ads: false, mall: false, finance: false, redeem: false, wallet: false, notifications: false });
+        const dialogVisible = reactive({ user: false, inbound: false, publish: false, news: false, courier: false, courierDetail: false, station: false, stationMap: false, profile: false, help: false, ad: false, mall: false, stock: false, adjust: false, coupon: false, notify: false });
+
+        // --- AI Center ---
+        const aiStats = ref({});
+        const aiMessages = ref([{ role: 'assistant', content: '你好！我是乡驿家 AI 助手，基于 DeepSeek 大模型驱动。我可以帮你分析系统运营数据、提供优化建议。请试试下方的智能分析按钮，或直接向我提问。' }]);
+        const aiInput = ref('');
+        const aiLoading = ref(false);
+        const aiInsight = ref('');
+        const aiChatBox = ref(null);
+
+        const renderMarkdown = (text) => {
+            if (!text) return '';
+            try {
+                // Use self-contained parser (always available, no external deps)
+                if (typeof window.__mdRender === 'function') {
+                    return window.__mdRender(text);
+                }
+                // Fallback: try marked.js if loaded
+                if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+                    return marked.parse(text);
+                }
+                // Emergency fallback
+                return text.replace(/\n/g, '<br>');
+            } catch(e) {
+                console.error('[renderMarkdown] error:', e, 'text:', text.substring(0, 100));
+                return text.replace(/\n/g, '<br>');
+            }
+        };
+
+        const loadAIDigest = () => {
+            req('/api/v1/admin/ai/digest').then(d => { aiStats.value = d || {}; }).catch(() => {});
+        };
+
+        const scrollToBottom = () => { setTimeout(() => { if (aiChatBox.value) aiChatBox.value.scrollTop = aiChatBox.value.scrollHeight; }, 50); };
+
+        const sendAIChat = () => {
+            const msg = aiInput.value.trim();
+            if (!msg || aiLoading.value) return;
+            aiMessages.value.push({ role: 'user', content: msg });
+            aiInput.value = '';
+            aiLoading.value = true;
+            scrollToBottom();
+
+            fetch('/api/v1/admin/ai/chat', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg })
+            }).then(res => {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+                aiMessages.value.push({ role: 'assistant', content: '' });
+                const msgIdx = aiMessages.value.length - 1;
+
+                const readChunk = () => {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            aiLoading.value = false;
+                            scrollToBottom();
+                            return;
+                        }
+                        const text = decoder.decode(value, { stream: true });
+                        const lines = text.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data:')) {
+                                const data = line.slice(5).trim();
+                                if (data === '[DONE]') { aiLoading.value = false; scrollToBottom(); return; }
+                                if (data.startsWith('error:') || data.startsWith('ERROR:')) {
+                                    aiMessages.value[msgIdx].content = 'AI 响应出错: ' + data;
+                                    aiLoading.value = false;
+                                    scrollToBottom();
+                                    return;
+                                }
+                                fullText += data + '\n';
+                                aiMessages.value[msgIdx].content = fullText;
+                                scrollToBottom();
+                            }
+                        }
+                        readChunk();
+                    }).catch(() => { aiLoading.value = false; scrollToBottom(); });
+                };
+                readChunk();
+            }).catch(err => {
+                aiMessages.value.push({ role: 'assistant', content: '请求失败: ' + err.message + '。请确认网络连接正常。' });
+                aiLoading.value = false;
+                scrollToBottom();
+            });
+        };
+
+        const quickPrompts = {
+            overview: '请基于当前系统数据，给出一份简洁的运营总览分析，包括关键指标解读和整体运行状况评估。',
+            package: '分析当前包裹数据分布，评估包裹处理效率，并预测近期包裹量趋势。',
+            efficiency: '基于配送员和包裹数据，给出配送效率优化建议，包括人员调度和路线规划。',
+            risk: '检测当前运营数据中可能存在的风险和问题，如积压包裹、人手不足等。',
+            suggest: '综合所有系统数据，给出3-5条具体的运营优化建议，按优先级排列。'
+        };
+
+        const aiQuickAction = (type) => {
+            const prompt = quickPrompts[type];
+            if (!prompt) return;
+            aiInsight.value = '';
+            aiLoading.value = true;
+            aiInsight.value = '正在分析数据，请稍候...';
+
+            fetch('/api/v1/admin/ai/chat', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: prompt })
+            }).then(res => {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+
+                const readChunk = () => {
+                    reader.read().then(({ done, value }) => {
+                        if (done) { aiLoading.value = false; return; }
+                        const text = decoder.decode(value, { stream: true });
+                        const lines = text.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data:')) {
+                                const data = line.slice(5).trim();
+                                if (data === '[DONE]') { aiLoading.value = false; return; }
+                                if (data.startsWith('error:') || data.startsWith('ERROR:')) { aiInsight.value = '分析出错，请重试'; aiLoading.value = false; return; }
+                                fullText += data + '\n';
+                                aiInsight.value = fullText;
+                            }
+                        }
+                        readChunk();
+                    }).catch(() => { aiLoading.value = false; });
+                };
+                readChunk();
+            }).catch(err => {
+                aiInsight.value = '请求失败: ' + err.message;
+                aiLoading.value = false;
+            });
+        };
+
+        // --- Dashboard ---
+        const stats = ref({});
+        const loadStats = () => { req('/api/v1/admin/station/statistics').then(d => { stats.value = d; }).catch(() => {}); };
+
+        // --- Packages ---
+        const packageList = ref([]);
+        const packageTotal = ref(0);
+        const packageQuery = reactive({ page: 1, size: 20, status: '' });
+
+        const loadPackages = () => {
+            loading.packages = true;
+            let url = `/api/v1/admin/packages?page=${packageQuery.page}&size=${packageQuery.size}`;
+            if (packageQuery.status) url += `&status=${packageQuery.status}`;
+            req(url).then(d => { packageList.value = d.records || []; packageTotal.value = d.total || 0; }).finally(() => { loading.packages = false; });
+        };
+
+        const getStatusLabel = (s) => ({ PENDING_INBOUND:'待入库', IN_STOCK:'在库中', TASK_PUBLISHED:'已发布', ASSIGNED:'已接单', DELIVERING:'派送中', COMPLETED:'已完成' }[s] || s);
+        const getStatusClass = (s) => ({ PENDING_INBOUND:'status-pending', IN_STOCK:'status-instock', TASK_PUBLISHED:'status-published', DELIVERING:'status-delivering', COMPLETED:'status-completed' }[s] || '');
+
+        const inboundForm = reactive({ packageId: '', shelfNumber: '' });
+        const openInboundDialog = (row) => { inboundForm.packageId = row.package_id || row.id; inboundForm.shelfNumber = ''; dialogVisible.inbound = true; };
+        const submitInbound = () => {
+            if (!inboundForm.shelfNumber) return ElMessage.warning('请填写货架号');
+            loading.submit = true;
+            req(`/api/v1/admin/packages/${inboundForm.packageId}/inbound`, { method: 'POST', body: JSON.stringify({ shelf_number: inboundForm.shelfNumber }) })
+                .then(() => { ElMessage.success('入库成功'); dialogVisible.inbound = false; loadPackages(); loadStats(); })
+                .finally(() => { loading.submit = false; });
+        };
+        const approvePackage = (pid) => {
+            loading.submit = true;
+            req(`/api/v1/admin/packages/${pid}/approve`, { method: 'POST', body: JSON.stringify({ reward_amount: 5 }) })
+                .then(() => { ElMessage.success('审批通过，任务已发布'); loadPackages(); loadStats(); })
+                .finally(() => { loading.submit = false; });
+        };
+        const outboundPackage = (pid) => {
+            req(`/api/v1/admin/packages/${pid}/outbound`, { method: 'POST' })
+                .then(() => { ElMessage.success('出库成功'); loadPackages(); loadStats(); });
+        };
+
+        // --- Users ---
+        const userList = ref([]);
+        const userTotal = ref(0);
+        const userQuery = reactive({ page: 1, size: 10, keyword: '' });
+
+        const loadUsers = () => {
+            loading.users = true;
+            let url = `/api/v1/admin/users?page=${userQuery.page}&size=${userQuery.size}`;
+            if (userQuery.keyword) url += `&keyword=${encodeURIComponent(userQuery.keyword)}`;
+            req(url).then(d => { userList.value = d.records || []; userTotal.value = d.total || 0; }).finally(() => { loading.users = false; });
+        };
+
+        const userForm = reactive({ id: null, account: '', password: '', nickname: '', phone: '', role: 'USER' });
+        const openUserDialog = (row) => {
+            if (row) { Object.assign(userForm, { id: row.id, account: row.account, password: '', nickname: row.nickname, phone: row.phone, role: row.role }); }
+            else { Object.assign(userForm, { id: null, account: '', password: '', nickname: '', phone: '', role: 'USER' }); }
+            dialogVisible.user = true;
+        };
+        const submitUserForm = () => {
+            if (!userForm.account || (!userForm.id && !userForm.password)) return ElMessage.warning('请填写必填项');
+            loading.submit = true;
+            const url = userForm.id ? `/api/v1/admin/users/${userForm.id}` : '/api/v1/admin/users';
+            const method = userForm.id ? 'PUT' : 'POST';
+            req(url, { method, body: JSON.stringify(userForm) }).then(() => {
+                ElMessage.success(userForm.id ? '更新成功' : '创建成功'); dialogVisible.user = false; loadUsers();
+            }).finally(() => { loading.submit = false; });
+        };
+        const deleteUser = (id) => { req(`/api/v1/admin/users/${id}`, { method: 'DELETE' }).then(() => { ElMessage.success('删除成功'); loadUsers(); }); };
+
+        // --- News ---
+        const newsList = ref([]);
+        const newsTotal = ref(0);
+        const newsQuery = reactive({ page: 1, size: 10 });
+        const newsForm = reactive({ id: null, title: '', content: '', tag: '', is_urgent: false });
+
+        const loadNews = () => {
+            loading.news = true;
+            req(`/api/v1/content/news?page=${newsQuery.page}&size=${newsQuery.size}`).then(d => { newsList.value = d.records || []; newsTotal.value = d.total || 0; }).finally(() => { loading.news = false; });
+        };
+        const openNewsDialog = () => { Object.assign(newsForm, { id: null, title: '', content: '', tag: '', is_urgent: false }); dialogVisible.news = true; };
+        const submitNews = () => {
+            if (!newsForm.title || !newsForm.content) return ElMessage.warning('请填写标题和内容');
+            loading.submit = true;
+            if (newsForm.id) {
+                req(`/api/v1/admin/content/news/${newsForm.id}`, { method: 'PUT', body: JSON.stringify({ title: newsForm.title, content: newsForm.content, tag: newsForm.tag, is_urgent: newsForm.is_urgent }) }).then(() => {
+                    ElMessage.success('编辑成功'); dialogVisible.news = false; loadNews();
+                }).finally(() => { loading.submit = false; });
+            } else {
+                req('/api/v1/content/news', { method: 'POST', body: JSON.stringify(newsForm) }).then(() => {
+                    ElMessage.success('发布成功'); dialogVisible.news = false; loadNews();
+                }).finally(() => { loading.submit = false; });
+            }
+        };
+        const editNewsItem = (row) => {
+            Object.assign(newsForm, { id: row.id, title: row.title, content: row.content, tag: row.tag || '', is_urgent: !!row.is_urgent });
+            dialogVisible.news = true;
+        };
+        const deleteNewsItem = (id) => {
+            req(`/api/v1/admin/content/news/${id}`, { method: 'DELETE' }).then(() => { ElMessage.success('删除成功'); loadNews(); });
+        };
+
+        // --- Couriers ---
+        const courierList = ref([]);
+        const courierTotal = ref(0);
+        const courierQuery = reactive({ page: 1, size: 10, keyword: '' });
+        const courierDetail = ref(null);
+        const stationOptions = ref([]);
+
+        const loadCouriers = () => {
+            loading.couriers = true;
+            let url = `/api/v1/admin/couriers?page=${courierQuery.page}&size=${courierQuery.size}`;
+            if (courierQuery.keyword) url += `&keyword=${encodeURIComponent(courierQuery.keyword)}`;
+            req(url).then(d => { courierList.value = d.records || []; courierTotal.value = d.total || 0; }).finally(() => { loading.couriers = false; });
+        };
+
+        const loadStationOptions = () => {
+            req('/api/v1/admin/stations/active').then(d => { stationOptions.value = d || []; }).catch(() => {});
+        };
+
+        const courierForm = reactive({ id: null, account: '', password: '', name: '', phone: '', stationId: null });
+        const openCourierDialog = (row) => {
+            loadStationOptions();
+            if (row) {
+                Object.assign(courierForm, { id: row.id, account: row.account, password: '', name: row.name, phone: row.phone, stationId: row.station_id });
+            } else {
+                Object.assign(courierForm, { id: null, account: '', password: '', name: '', phone: '', stationId: null });
+            }
+            dialogVisible.courier = true;
+        };
+        const submitCourierForm = () => {
+            if (!courierForm.account || !courierForm.name || (!courierForm.id && !courierForm.password)) return ElMessage.warning('请填写必填项');
+            loading.submit = true;
+            const url = courierForm.id ? `/api/v1/admin/couriers/${courierForm.id}` : '/api/v1/admin/couriers';
+            const method = courierForm.id ? 'PUT' : 'POST';
+            req(url, { method, body: JSON.stringify(courierForm) }).then(() => {
+                ElMessage.success(courierForm.id ? '更新成功' : '创建成功'); dialogVisible.courier = false; loadCouriers();
+            }).finally(() => { loading.submit = false; });
+        };
+        const toggleCourierStatus = (row) => {
+            const newStatus = row.status === 1 ? 0 : 1;
+            const action = newStatus === 1 ? '启用' : '禁用';
+            ElMessageBox.confirm(`确定${action}配送员「${row.name}」？`, '提示', { type: 'warning' }).then(() => {
+                req(`/api/v1/admin/couriers/${row.id}/status`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) })
+                    .then(() => { ElMessage.success(`${action}成功`); loadCouriers(); });
+            }).catch(() => {});
+        };
+        const viewCourierDetail = (row) => {
+            req(`/api/v1/admin/couriers/${row.id}`).then(d => { courierDetail.value = d; dialogVisible.courierDetail = true; });
+        };
+
+        // --- Stations ---
+        const stationList = ref([]);
+        const stationTotal = ref(0);
+        const stationQuery = reactive({ page: 1, size: 10, keyword: '' });
+
+        const loadStations = () => {
+            loading.stations = true;
+            let url = `/api/v1/admin/stations?page=${stationQuery.page}&size=${stationQuery.size}`;
+            if (stationQuery.keyword) url += `&keyword=${encodeURIComponent(stationQuery.keyword)}`;
+            req(url).then(d => { stationList.value = d.records || []; stationTotal.value = d.total || 0; }).finally(() => { loading.stations = false; });
+        };
+
+        const stationForm = reactive({ id: null, stationNo: '', name: '', address: '', phone: '', openingHours: '', lat: '', lng: '' });
+        const openStationDialog = (row) => {
+            if (row) {
+                Object.assign(stationForm, { id: row.id, stationNo: row.station_no, name: row.name, address: row.address, phone: row.phone || '', openingHours: row.opening_hours || '', lat: row.lat || '', lng: row.lng || '' });
+            } else {
+                Object.assign(stationForm, { id: null, stationNo: '', name: '', address: '', phone: '', openingHours: '', lat: '', lng: '' });
+            }
+            dialogVisible.station = true;
+        };
+        const submitStationForm = () => {
+            if (!stationForm.stationNo || !stationForm.name || !stationForm.address) return ElMessage.warning('请填写必填项');
+            loading.submit = true;
+            const body = {
+                stationNo: stationForm.stationNo, name: stationForm.name, address: stationForm.address,
+                phone: stationForm.phone || null, openingHours: stationForm.openingHours || null,
+                lat: stationForm.lat ? parseFloat(stationForm.lat) : null,
+                lng: stationForm.lng ? parseFloat(stationForm.lng) : null
             };
-        }
-    });
-    app.use(ElementPlus);
-    app.mount('#app');
+            const url = stationForm.id ? `/api/v1/admin/stations/${stationForm.id}` : '/api/v1/admin/stations';
+            const method = stationForm.id ? 'PUT' : 'POST';
+            req(url, { method, body: JSON.stringify(body) }).then(() => {
+                ElMessage.success(stationForm.id ? '更新成功' : '创建成功'); dialogVisible.station = false; loadStations();
+            }).finally(() => { loading.submit = false; });
+        };
+        const deleteStation = (id) => {
+            req(`/api/v1/admin/stations/${id}`, { method: 'DELETE' }).then(() => { ElMessage.success('删除成功'); loadStations(); });
+        };
+
+        // --- Station Map ---
+        const stationMapInfo = reactive({ id: null, name: '', lat: null, lng: null, address: '', station_no: '', phone: '', opening_hours: '' });
+        let stationMapInstance = null;
+        const showStationMap = (row) => {
+            Object.assign(stationMapInfo, {
+                id: row.id, name: row.name || '', lat: row.lat || null, lng: row.lng || null,
+                address: row.address || '', station_no: row.station_no || '', phone: row.phone || '', opening_hours: row.opening_hours || ''
+            });
+            dialogVisible.stationMap = true;
+        };
+        const initStationMap = () => {
+            if (stationMapInstance) { stationMapInstance.destroy(); stationMapInstance = null; }
+            if (!stationMapInfo.lat || !stationMapInfo.lng) return;
+            if (typeof AMap === 'undefined') { ElMessage.warning('高德地图加载失败，请检查网络'); return; }
+            const container = document.getElementById('stationMapContainer');
+            if (!container) return;
+            const lng = parseFloat(stationMapInfo.lng);
+            const lat = parseFloat(stationMapInfo.lat);
+            stationMapInstance = new AMap.Map('stationMapContainer', {
+                zoom: 15,
+                center: [lng, lat],
+                mapStyle: 'amap://styles/light'
+            });
+            const marker = new AMap.Marker({
+                position: [lng, lat],
+                title: stationMapInfo.name
+            });
+            marker.setMap(stationMapInstance);
+            const infoWindow = new AMap.InfoWindow({
+                content: `<div style="padding:6px 10px;font-size:13px;"><strong>${stationMapInfo.name}</strong><br/><span style="color:#666;">${stationMapInfo.address || ''}</span></div>`,
+                offset: new AMap.Pixel(0, -30)
+            });
+            infoWindow.open(stationMapInstance, [lng, lat]);
+        };
+
+        // --- Analytics ---
+        const analyticsDays = ref(7);
+        const courierEfficiency = ref([]);
+        let chartInstances = {};
+
+        const destroyChart = (id) => { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } };
+
+        const loadAnalytics = () => {
+            const days = analyticsDays.value;
+            req(`/api/v1/admin/analytics/package-trend?days=${days}`).then(data => {
+                destroyChart('chartPackageTrend');
+                const ctx = document.getElementById('chartPackageTrend');
+                if (!ctx) return;
+                chartInstances['chartPackageTrend'] = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: (data||[]).map(d=>d.date), datasets: [{ label: '包裹数', data: (data||[]).map(d=>d.total), borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', fill: true, tension: 0.3 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                });
+            }).catch(()=>{});
+            req(`/api/v1/admin/analytics/user-growth?days=${days}`).then(data => {
+                destroyChart('chartUserGrowth');
+                const ctx = document.getElementById('chartUserGrowth');
+                if (!ctx) return;
+                chartInstances['chartUserGrowth'] = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: (data||[]).map(d=>d.date), datasets: [{ label: '新用户', data: (data||[]).map(d=>d.total), borderColor: '#52c41a', backgroundColor: 'rgba(82,196,26,0.1)', fill: true, tension: 0.3 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                });
+            }).catch(()=>{});
+            req('/api/v1/admin/analytics/package-status').then(data => {
+                destroyChart('chartStatusPie');
+                const ctx = document.getElementById('chartStatusPie');
+                if (!ctx) return;
+                const labels = (data||[]).map(d => ({ PENDING_INBOUND:'待入库', IN_STOCK:'在库中', TASK_PUBLISHED:'已发布', ASSIGNED:'已接单', DELIVERING:'派送中', COMPLETED:'已完成' }[d.status] || d.status));
+                const colors = ['#faad14','#52c41a','#1890ff','#722ed1','#eb2f96','#8c8c8c'];
+                chartInstances['chartStatusPie'] = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { labels, datasets: [{ data: (data||[]).map(d=>d.count), backgroundColor: colors }] },
+                    options: { responsive: true, plugins: { legend: { position: 'right' } } }
+                });
+            }).catch(()=>{});
+            req(`/api/v1/admin/analytics/courier-efficiency?limit=10`).then(data => { courierEfficiency.value = data || []; }).catch(()=>{});
+        };
+
+        // --- Operation Logs ---
+        const oplogList = ref([]);
+        const oplogTotal = ref(0);
+        const oplogQuery = reactive({ page: 1, size: 20, operation: '' });
+        const loadOpLogs = () => {
+            loading.oplogs = true;
+            let url = `/api/v1/admin/operation-logs?page=${oplogQuery.page}&size=${oplogQuery.size}`;
+            if (oplogQuery.operation) url += `&operation=${oplogQuery.operation}`;
+            req(url).then(d => { oplogList.value = d.records || []; oplogTotal.value = d.total || 0; }).finally(() => { loading.oplogs = false; });
+        };
+
+        // --- Comments Moderation ---
+        const commentList = ref([]);
+        const commentTotal = ref(0);
+        const commentQuery = reactive({ page: 1, size: 20 });
+        const loadComments = () => {
+            loading.comments = true;
+            req(`/api/v1/admin/content/comments?page=${commentQuery.page}&size=${commentQuery.size}`).then(d => { commentList.value = d.records || []; commentTotal.value = d.total || 0; }).finally(() => { loading.comments = false; });
+        };
+        const toggleCommentStatus = (row) => {
+            const newStatus = row.status === 1 ? 0 : 1;
+            req(`/api/v1/admin/content/comments/${row.id}/toggle`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) }).then(() => { ElMessage.success(newStatus === 1 ? '已显示' : '已隐藏'); loadComments(); });
+        };
+
+        // --- Help Center ---
+        const helpList = ref([]);
+        const loadHelp = () => { loading.help = true; req('/api/v1/admin/help').then(d => { helpList.value = d || []; }).finally(() => { loading.help = false; }); };
+        const helpForm = reactive({ id: null, title: '', content: '', sortOrder: 0, status: 1 });
+        const openHelpDialog = (row) => {
+            if (row) Object.assign(helpForm, { id: row.id, title: row.title, content: row.content, sortOrder: row.sortOrder || 0, status: row.status });
+            else Object.assign(helpForm, { id: null, title: '', content: '', sortOrder: 0, status: 1 });
+            dialogVisible.help = true;
+        };
+        const submitHelpForm = () => {
+            if (!helpForm.title || !helpForm.content) return ElMessage.warning('请填写标题和内容');
+            loading.submit = true;
+            const url = helpForm.id ? `/api/v1/admin/help/${helpForm.id}` : '/api/v1/admin/help';
+            const method = helpForm.id ? 'PUT' : 'POST';
+            req(url, { method, body: JSON.stringify(helpForm) }).then(() => { ElMessage.success('保存成功'); dialogVisible.help = false; loadHelp(); }).finally(() => { loading.submit = false; });
+        };
+        const deleteHelp = (id) => { req(`/api/v1/admin/help/${id}`, { method: 'DELETE' }).then(() => { ElMessage.success('删除成功'); loadHelp(); }); };
+
+        // --- Customer Service Config ---
+        const csForm = reactive({ id: null, phone: '', wechat: '', onlineTime: '', status: 1 });
+        const loadCsConfig = () => { req('/api/v1/admin/customer-service').then(d => { if (d && d.length > 0) { const c = d[0]; Object.assign(csForm, { id: c.id, phone: c.phone || '', wechat: c.wechat || '', onlineTime: c.onlineTime || c.online_time || '', status: c.status }); } }); };
+        const saveCsConfig = () => {
+            loading.submit = true;
+            req('/api/v1/admin/customer-service', { method: 'POST', body: JSON.stringify({ id: csForm.id, phone: csForm.phone, wechat: csForm.wechat, onlineTime: csForm.onlineTime, status: csForm.status }) }).then(() => { ElMessage.success('保存成功'); }).finally(() => { loading.submit = false; });
+        };
+
+        // --- Splash Ads ---
+        const adList = ref([]);
+        const loadAds = () => { loading.ads = true; req('/api/v1/admin/splash-ads').then(d => { adList.value = d || []; }).finally(() => { loading.ads = false; }); };
+        const adForm = reactive({ id: null, name: '', imageUrl: '', targetUrl: '', weight: 10, status: 1 });
+        const openAdDialog = (row) => {
+            if (row) Object.assign(adForm, { id: row.id, name: row.name, imageUrl: row.imageUrl || row.image_url || '', targetUrl: row.targetUrl || row.target_url || '', weight: row.weight || 10, status: row.status });
+            else Object.assign(adForm, { id: null, name: '', imageUrl: '', targetUrl: '', weight: 10, status: 1 });
+            dialogVisible.ad = true;
+        };
+        const submitAdForm = () => {
+            if (!adForm.name || !adForm.imageUrl) return ElMessage.warning('请填写名称和图片URL');
+            loading.submit = true;
+            const url = adForm.id ? `/api/v1/admin/splash-ads/${adForm.id}` : '/api/v1/admin/splash-ads';
+            const method = adForm.id ? 'PUT' : 'POST';
+            req(url, { method, body: JSON.stringify({ name: adForm.name, imageUrl: adForm.imageUrl, targetUrl: adForm.targetUrl, weight: adForm.weight, status: adForm.status }) }).then(() => { ElMessage.success('保存成功'); dialogVisible.ad = false; loadAds(); }).finally(() => { loading.submit = false; });
+        };
+        const deleteAd = (id) => { req(`/api/v1/admin/splash-ads/${id}`, { method: 'DELETE' }).then(() => { ElMessage.success('删除成功'); loadAds(); }); };
+
+        // --- Mall Management ---
+        const mallList = ref([]);
+        const mallTotal = ref(0);
+        const mallQuery = reactive({ page: 1, size: 10, keyword: '' });
+        const loadMall = () => {
+            loading.mall = true;
+            let url = `/api/v1/admin/mall/items?page=${mallQuery.page}&size=${mallQuery.size}`;
+            if (mallQuery.keyword) url += `&keyword=${encodeURIComponent(mallQuery.keyword)}`;
+            req(url).then(d => { mallList.value = d.records || []; mallTotal.value = d.total || 0; }).finally(() => { loading.mall = false; });
+        };
+        const mallForm = reactive({ id: null, itemNo: '', name: '', description: '', type: '', points: 0, stock: 0, imageUrl: '', status: 1 });
+        const openMallDialog = (row) => {
+            if (row) Object.assign(mallForm, { id: row.id, itemNo: row.itemNo || '', name: row.name || '', description: row.description || '', type: row.type || '', points: row.points || 0, stock: row.stock || 0, imageUrl: row.imageUrl || '', status: row.status });
+            else Object.assign(mallForm, { id: null, itemNo: '', name: '', description: '', type: '', points: 0, stock: 0, imageUrl: '', status: 1 });
+            dialogVisible.mall = true;
+        };
+        const submitMallForm = () => {
+            if (!mallForm.itemNo || !mallForm.name) return ElMessage.warning('请填写编号和名称');
+            loading.submit = true;
+            const url = mallForm.id ? `/api/v1/admin/mall/items/${mallForm.id}` : '/api/v1/admin/mall/items';
+            const method = mallForm.id ? 'PUT' : 'POST';
+            req(url, { method, body: JSON.stringify(mallForm) }).then(() => { ElMessage.success('保存成功'); dialogVisible.mall = false; loadMall(); }).finally(() => { loading.submit = false; });
+        };
+        const deleteMallItem = (id) => { req(`/api/v1/admin/mall/items/${id}`, { method: 'DELETE' }).then(() => { ElMessage.success('删除成功'); loadMall(); }); };
+        const stockAdjust = reactive({ id: null, name: '', currentStock: 0, delta: 0 });
+        const openStockDialog = (row) => { Object.assign(stockAdjust, { id: row.id, name: row.name, currentStock: row.stock || 0, delta: 0 }); dialogVisible.stock = true; };
+        const submitStockAdjust = () => {
+            if (!stockAdjust.delta) return ElMessage.warning('请输入调整量');
+            loading.submit = true;
+            req(`/api/v1/admin/mall/items/${stockAdjust.id}/stock`, { method: 'PUT', body: JSON.stringify({ delta: stockAdjust.delta }) }).then(() => { ElMessage.success('库存调整成功'); dialogVisible.stock = false; loadMall(); }).finally(() => { loading.submit = false; });
+        };
+
+        // --- User Finance ---
+        const accountList = ref([]);
+        const accountTotal = ref(0);
+        const accountQuery = reactive({ page: 1, size: 10 });
+        const loadAccounts = () => {
+            loading.finance = true;
+            req(`/api/v1/admin/user-finance/accounts?page=${accountQuery.page}&size=${accountQuery.size}`).then(d => { accountList.value = d.records || []; accountTotal.value = d.total || 0; }).finally(() => { loading.finance = false; });
+        };
+        const adjustForm = reactive({ userId: null, nickname: '', type: 'points', value: 0 });
+        const openAdjustDialog = (type, row) => { Object.assign(adjustForm, { userId: row.user_id || row.userId, nickname: row.nickname || '', type, value: 0 }); dialogVisible.adjust = true; };
+        const submitAdjust = () => {
+            if (!adjustForm.value) return ElMessage.warning('请输入变动值');
+            loading.submit = true;
+            const url = adjustForm.type === 'points' ? '/api/v1/admin/user-finance/points/adjust' : '/api/v1/admin/user-finance/balance/adjust';
+            const body = adjustForm.type === 'points' ? { userId: adjustForm.userId, points: adjustForm.value } : { userId: adjustForm.userId, amount: adjustForm.value };
+            req(url, { method: 'POST', body: JSON.stringify(body) }).then(() => { ElMessage.success('调整成功'); dialogVisible.adjust = false; loadAccounts(); }).finally(() => { loading.submit = false; });
+        };
+        const couponForm = reactive({ userId: null, nickname: '', name: '', amount: 0 });
+        const openCouponDialog = (row) => { Object.assign(couponForm, { userId: row.user_id || row.userId, nickname: row.nickname || '', name: '', amount: 0 }); dialogVisible.coupon = true; };
+        const submitCoupon = () => {
+            if (!couponForm.name || !couponForm.amount) return ElMessage.warning('请填写券名称和金额');
+            loading.submit = true;
+            req('/api/v1/admin/user-finance/coupons/issue', { method: 'POST', body: JSON.stringify({ userId: couponForm.userId, name: couponForm.name, amount: couponForm.amount }) }).then(() => { ElMessage.success('发券成功'); dialogVisible.coupon = false; }).finally(() => { loading.submit = false; });
+        };
+
+        // --- Redemption Records ---
+        const redeemList = ref([]);
+        const redeemTotal = ref(0);
+        const redeemQuery = reactive({ page: 1, size: 10 });
+        const loadRedeems = () => {
+            loading.redeem = true;
+            req(`/api/v1/admin/redeem?page=${redeemQuery.page}&size=${redeemQuery.size}`).then(d => { redeemList.value = d.records || []; redeemTotal.value = d.total || 0; }).finally(() => { loading.redeem = false; });
+        };
+        const fulfillRedeem = (id) => { req(`/api/v1/admin/redeem/${id}/fulfill`, { method: 'PUT' }).then(() => { ElMessage.success('已标记完成'); loadRedeems(); }); };
+        const cancelRedeem = (id) => { ElMessageBox.confirm('确定取消该兑换记录？', '提示', { type: 'warning' }).then(() => { req(`/api/v1/admin/redeem/${id}/cancel`, { method: 'PUT' }).then(() => { ElMessage.success('已取消'); loadRedeems(); }); }).catch(() => {}); };
+
+        // --- Wallet Transactions ---
+        const walletList = ref([]);
+        const walletTotal = ref(0);
+        const walletQuery = reactive({ page: 1, size: 20, userId: '', type: '' });
+        const loadWallet = () => {
+            loading.wallet = true;
+            let url = `/api/v1/admin/wallet/transactions?page=${walletQuery.page}&size=${walletQuery.size}`;
+            if (walletQuery.userId) url += `&userId=${walletQuery.userId}`;
+            if (walletQuery.type) url += `&type=${walletQuery.type}`;
+            req(url).then(d => { walletList.value = d.records || []; walletTotal.value = d.total || 0; }).finally(() => { loading.wallet = false; });
+        };
+
+        // --- Notifications ---
+        const notificationList = ref([]);
+        const notificationTotal = ref(0);
+        const notificationQuery = reactive({ page: 1, size: 10 });
+        const unreadCount = ref(0);
+        const loadNotifications = () => {
+            loading.notifications = true;
+            req(`/api/v1/admin/notifications?page=${notificationQuery.page}&size=${notificationQuery.size}`).then(d => { notificationList.value = d.records || []; notificationTotal.value = d.total || 0; }).finally(() => { loading.notifications = false; });
+            req('/api/v1/admin/notifications/unread-count').then(d => { unreadCount.value = d.count || 0; }).catch(() => {});
+        };
+        const markRead = (id) => { req(`/api/v1/admin/notifications/${id}/read`, { method: 'PUT' }).then(() => { loadNotifications(); }); };
+        const markAllRead = () => { req('/api/v1/admin/notifications/read-all', { method: 'PUT' }).then(() => { ElMessage.success('全部已读'); loadNotifications(); }); };
+        const notifyForm = reactive({ title: '', content: '', type: 'SYSTEM' });
+        const openNotifyDialog = () => { Object.assign(notifyForm, { title: '', content: '', type: 'SYSTEM' }); dialogVisible.notify = true; };
+        const submitNotify = () => {
+            if (!notifyForm.title) return ElMessage.warning('请填写标题');
+            loading.submit = true;
+            req('/api/v1/admin/notifications', { method: 'POST', body: JSON.stringify(notifyForm) }).then(() => { ElMessage.success('通知已创建'); dialogVisible.notify = false; loadNotifications(); }).finally(() => { loading.submit = false; });
+        };
+
+        // --- Export ---
+        const exportData = (type) => {
+            const url = type === 'packages' ? '/api/v1/admin/export/packages' : '/api/v1/admin/export/users';
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        };
+
+        // --- Batch Operations ---
+        const batchInbound = reactive({ ids: '', prefix: 'A-' });
+        const batchApprove = reactive({ ids: '', reward: 8.00 });
+        const parseIds = (text) => { return text.split(/[\n,]+/).map(s => s.trim()).filter(s => s); };
+        const doBatchInbound = () => {
+            const ids = parseIds(batchInbound.ids);
+            if (!ids.length) return ElMessage.warning('请输入包裹ID');
+            loading.submit = true;
+            req('/api/v1/admin/batch/inbound', { method: 'POST', body: JSON.stringify({ ids, shelf_number_prefix: batchInbound.prefix || 'A-' }) }).then(d => {
+                ElMessage.success(`成功: ${d.success}, 失败: ${d.failed}`);
+                if (d.errors && d.errors.length) d.errors.forEach(e => ElMessage.error(e));
+                batchInbound.ids = '';
+            }).finally(() => { loading.submit = false; });
+        };
+        const doBatchApprove = () => {
+            const ids = parseIds(batchApprove.ids);
+            if (!ids.length) return ElMessage.warning('请输入包裹ID');
+            loading.submit = true;
+            req('/api/v1/admin/batch/approve', { method: 'POST', body: JSON.stringify({ ids, reward_amount: batchApprove.reward }) }).then(d => {
+                ElMessage.success(`成功: ${d.success}, 失败: ${d.failed}`);
+                if (d.errors && d.errors.length) d.errors.forEach(e => ElMessage.error(e));
+                batchApprove.ids = '';
+            }).finally(() => { loading.submit = false; });
+        };
+
+        // --- Profile ---
+        const profileForm = reactive({ username: '', realName: '', phone: '' });
+        const openProfileDialog = () => {
+            showUserDropdown.value = false;
+            dialogVisible.profile = true;
+            loading.profile = true;
+            req('/api/v1/admin/profile').then(d => { Object.assign(profileForm, { username: d.username, realName: d.realName, phone: d.phone }); }).finally(() => { loading.profile = false; });
+        };
+        const submitProfile = () => {
+            loading.submit = true;
+            req('/api/v1/admin/profile', { method: 'PUT', body: JSON.stringify(profileForm) }).then(() => {
+                ElMessage.success('保存成功'); dialogVisible.profile = false;
+                currentUser.value.nickname = profileForm.realName || profileForm.username;
+                localStorage.setItem('admin_user', JSON.stringify(currentUser.value));
+            }).finally(() => { loading.submit = false; });
+        };
+
+        // --- Common ---
+        const switchMenu = (m) => {
+            activeMenu.value = m;
+            if (m === 'ai') loadAIDigest();
+            if (m === 'dashboard') loadStats();
+            if (m === 'users') loadUsers();
+            if (m === 'packages') loadPackages();
+            if (m === 'couriers') loadCouriers();
+            if (m === 'stations') loadStations();
+            if (m === 'news') loadNews();
+            if (m === 'analytics') loadAnalytics();
+            if (m === 'oplogs') loadOpLogs();
+            if (m === 'comments') loadComments();
+            if (m === 'help') loadHelp();
+            if (m === 'csconfig') loadCsConfig();
+            if (m === 'ads') loadAds();
+            if (m === 'mall') loadMall();
+            if (m === 'finance') loadAccounts();
+            if (m === 'redeem') loadRedeems();
+            if (m === 'wallet') loadWallet();
+            if (m === 'notifications') loadNotifications();
+        };
+        const handleLogout = () => {
+            showUserDropdown.value = false;
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_refresh_token');
+            localStorage.removeItem('admin_user');
+            window.location.href = '/admin/login';
+        };
+        const formatDate = (d) => {
+            if (!d) return '-';
+            const dt = new Date(d);
+            return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0') + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+        };
+
+        onMounted(() => {
+            loadStats();
+            // Diagnostic: verify markdown parser is available
+            console.log('[AI] __mdRender available:', typeof window.__mdRender === 'function');
+            var testResult = renderMarkdown('### Test\n**bold** and *italic*\n- item1\n- item2');
+            console.log('[AI] renderMarkdown test output:', testResult);
+        });
+
+        return {
+            currentUser, activeMenu, sidebarCollapsed, showUserDropdown, menuTitles,
+            opsExpanded, opsGroupMenus, economyExpanded, economyGroupMenus, sysExpanded, sysGroupMenus,
+            stats, handleLogout, formatDate, switchMenu,
+            loading, dialogVisible,
+            aiStats, aiMessages, aiInput, aiLoading, aiInsight, aiChatBox, renderMarkdown, loadAIDigest, sendAIChat, aiQuickAction,
+            packageList, packageTotal, packageQuery, loadPackages, getStatusLabel, getStatusClass,
+            inboundForm, openInboundDialog, submitInbound, approvePackage, outboundPackage,
+            userList, userTotal, userQuery, loadUsers, deleteUser, openUserDialog, submitUserForm, userForm,
+            courierList, courierTotal, courierQuery, courierDetail, courierForm, stationOptions,
+            loadCouriers, openCourierDialog, submitCourierForm, toggleCourierStatus, viewCourierDetail,
+            stationList, stationTotal, stationQuery, stationForm, stationMapInfo,
+            loadStations, openStationDialog, submitStationForm, deleteStation, showStationMap, initStationMap,
+            newsList, newsTotal, newsQuery, loadNews, newsForm, openNewsDialog, submitNews, editNewsItem, deleteNewsItem,
+            analyticsDays, courierEfficiency, loadAnalytics,
+            oplogList, oplogTotal, oplogQuery, loadOpLogs,
+            commentList, commentTotal, commentQuery, loadComments, toggleCommentStatus,
+            helpList, loadHelp, helpForm, openHelpDialog, submitHelpForm, deleteHelp,
+            csForm, loadCsConfig, saveCsConfig,
+            adList, loadAds, adForm, openAdDialog, submitAdForm, deleteAd,
+            mallList, mallTotal, mallQuery, mallForm, stockAdjust, loadMall, openMallDialog, submitMallForm, deleteMallItem, openStockDialog, submitStockAdjust,
+            accountList, accountTotal, accountQuery, adjustForm, couponForm, loadAccounts, openAdjustDialog, submitAdjust, openCouponDialog, submitCoupon,
+            redeemList, redeemTotal, redeemQuery, loadRedeems, fulfillRedeem, cancelRedeem,
+            walletList, walletTotal, walletQuery, loadWallet,
+            notificationList, notificationTotal, notificationQuery, unreadCount, notifyForm, loadNotifications, markRead, markAllRead, openNotifyDialog, submitNotify,
+            batchInbound, batchApprove, doBatchInbound, doBatchApprove, exportData,
+            profileForm, openProfileDialog, submitProfile
+        };
+    }
+});
+app.use(ElementPlus);
+app.mount('#app');
 </script>
 </body>
 </html>
