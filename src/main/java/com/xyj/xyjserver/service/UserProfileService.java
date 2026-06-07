@@ -2,12 +2,14 @@ package com.xyj.xyjserver.service;
 
 import com.xyj.xyjserver.common.api.PageResult;
 import com.xyj.xyjserver.dto.AddressDTO;
+import com.xyj.xyjserver.dto.UpdateAvatarDTO;
 import com.xyj.xyjserver.vo.*;
 
 import java.util.List;
 
 public interface UserProfileService {
     UserProfileVO getUserProfile(Long userId);
+    UserProfileVO updateAvatar(Long userId, UpdateAvatarDTO dto);
     List<AddressVO> getAddresses(Long userId);
     AddressVO addAddress(Long userId, AddressDTO addressDTO);
     PageResult<CouponVO> getCoupons(Long userId, String status, Long page, Long size);
