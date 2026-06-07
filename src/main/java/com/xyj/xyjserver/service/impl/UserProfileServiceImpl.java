@@ -4,11 +4,14 @@ import com.xyj.xyjserver.common.api.PageResult;
 import com.xyj.xyjserver.common.api.ResultCode;
 import com.xyj.xyjserver.common.exception.BusinessException;
 import com.xyj.xyjserver.dto.AddressDTO;
+import com.xyj.xyjserver.dto.UpdateAvatarDTO;
 import com.xyj.xyjserver.entity.MallItem;
 import com.xyj.xyjserver.entity.MallRedeemRecord;
+import com.xyj.xyjserver.entity.User;
 import com.xyj.xyjserver.entity.UserPointsAccount;
 import com.xyj.xyjserver.mapper.MallItemMapper;
 import com.xyj.xyjserver.mapper.MallRedeemRecordMapper;
+import com.xyj.xyjserver.mapper.UserMapper;
 import com.xyj.xyjserver.mapper.UserPointsAccountMapper;
 import com.xyj.xyjserver.service.UserProfileService;
 import com.xyj.xyjserver.vo.*;
@@ -36,20 +39,45 @@ public class UserProfileServiceImpl implements UserProfileService {
     @Autowired
     private UserPointsAccountMapper userPointsAccountMapper;
 
+    @Autowired
+    private UserMapper userMapper;
+
     @Override
     public UserProfileVO getUserProfile(Long userId) {
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "用户不存在");
+        }
         UserPointsAccount account = getOrCreatePointsAccount(userId);
         UserProfileVO vo = new UserProfileVO();
         vo.setId(userId);
-        vo.setUserNo("U" + userId);
-        vo.setNickname("用户" + userId);
-        vo.setAvatarUrl("/uploads/avatar.png");
-        vo.setPhone("13800138000");
+        vo.setUserNo(user.getUserNo());
+        vo.setNickname(user.getNickname() != null ? user.getNickname() : "用户" + userId);
+        vo.setAvatarUrl(user.getAvatarUrl() != null && !user.getAvatarUrl().isBlank()
+                ? user.getAvatarUrl()
+                : "/uploads/avatar.png");
+        vo.setPhone(user.getPhone());
         vo.setIsRealnameAuth(true);
         vo.setBalance(account.getBalance());
         vo.setPoints(account.getPoints());
         vo.setCouponCount(account.getCouponCount());
         return vo;
+    }
+
+    @Override
+    public UserProfileVO updateAvatar(Long userId, UpdateAvatarDTO dto) {
+        String avatarUrl = dto.getAvatarUrl() == null ? "" : dto.getAvatarUrl().trim();
+        if (avatarUrl.isEmpty()) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "头像地址不能为空");
+        }
+        User user = new User();
+        user.setId(userId);
+        user.setAvatarUrl(avatarUrl);
+        int updated = userMapper.update(user);
+        if (updated <= 0) {
+            throw new BusinessException(ResultCode.VALIDATE_FAILED, "用户不存在");
+        }
+        return getUserProfile(userId);
     }
 
     @Override

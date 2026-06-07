@@ -4,6 +4,7 @@ import com.xyj.xyjserver.common.api.PageResult;
 import com.xyj.xyjserver.common.api.Result;
 import com.xyj.xyjserver.common.interceptor.AuthInterceptor;
 import com.xyj.xyjserver.dto.AddressDTO;
+import com.xyj.xyjserver.dto.UpdateAvatarDTO;
 import com.xyj.xyjserver.service.UserProfileService;
 import com.xyj.xyjserver.vo.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +33,18 @@ public class UserProfileController {
     public Result<UserProfileVO> getUserProfile(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
         return Result.success(userProfileService.getUserProfile(userId));
+    }
+
+    /**
+     * 更新当前用户头像
+     */
+    @Operation(summary = "更新当前用户头像")
+    @PutMapping("/profile/avatar")
+    public Result<UserProfileVO> updateAvatar(
+            HttpServletRequest request,
+            @Validated @RequestBody UpdateAvatarDTO dto) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.USER_ID_ATTR);
+        return Result.success(userProfileService.updateAvatar(userId, dto));
     }
 
     /**
