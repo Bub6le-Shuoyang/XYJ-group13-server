@@ -5,7 +5,6 @@ import org.apache.ibatis.annotations.*;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 @Mapper
 public interface CourierMapper {
@@ -38,7 +37,7 @@ public interface CourierMapper {
             "</if>" +
             " ORDER BY c.created_at DESC LIMIT #{offset}, #{size}" +
             "</script>")
-    List<Map<String, Object>> searchByKeyword(@Param("keyword") String keyword,
+    List<Courier> searchByKeyword(@Param("keyword") String keyword,
                                               @Param("stationId") Long stationId,
                                               @Param("offset") long offset,
                                               @Param("size") long size);

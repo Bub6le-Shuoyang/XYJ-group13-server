@@ -20,4 +20,7 @@ public class Courier {
     private Integer status;
     private Date createdAt;
     private Date updatedAt;
+
+    /** 非数据库字段，用于 JOIN 查询时携带站点名称 */
+    private String stationName;
 }

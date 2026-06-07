@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,10 +26,10 @@ public class AdminCourierServiceImpl implements AdminCourierService {
     public PageResult<CourierListVO> getCourierList(Long page, Long size, String keyword) {
         long offset = (page - 1) * size;
         // 超管查看所有站点，这里 stationId 传 null
-        List<Map<String, Object>> rows = courierMapper.searchByKeyword(keyword, null, offset, size);
+        List<Courier> rows = courierMapper.searchByKeyword(keyword, null, offset, size);
         long total = courierMapper.countByKeyword(keyword, null);
 
-        List<CourierListVO> voList = rows.stream().map(this::rowToVO).collect(Collectors.toList());
+        List<CourierListVO> voList = rows.stream().map(this::toVO).collect(Collectors.toList());
         return new PageResult<>(voList, total, size, page);
     }
 
@@ -100,7 +99,7 @@ public class AdminCourierServiceImpl implements AdminCourierService {
         if (existing == null) {
             throw new BusinessException(ResultCode.VALIDATE_FAILED, "配送员不存在");
         }
-        CourierListVO vo = entityToVO(existing);
+        CourierListVO vo = toVO(existing);
         // 附加业绩数据
         vo.setTotalEarnings(courierMapper.sumTotalEarnings(id));
         vo.setCompletedTasks(courierMapper.countCompletedTasks(id));
@@ -108,25 +107,7 @@ public class AdminCourierServiceImpl implements AdminCourierService {
         return vo;
     }
 
-    private CourierListVO rowToVO(Map<String, Object> row) {
-        CourierListVO vo = new CourierListVO();
-        vo.setId(((Number) row.get("id")).longValue());
-        vo.setCourierNo((String) row.get("courier_no"));
-        vo.setAccount((String) row.get("account"));
-        vo.setName((String) row.get("name"));
-        vo.setPhone((String) row.get("phone"));
-        vo.setAvatarUrl((String) row.get("avatar_url"));
-        Object sid = row.get("station_id");
-        vo.setStationId(sid != null ? ((Number) sid).longValue() : null);
-        vo.setStationName((String) row.get("station_name"));
-        vo.setLevelName((String) row.get("level_name"));
-        Object st = row.get("status");
-        vo.setStatus(st != null ? ((Number) st).intValue() : 0);
-        vo.setCreatedAt((java.util.Date) row.get("created_at"));
-        return vo;
-    }
-
-    private CourierListVO entityToVO(Courier c) {
+    private CourierListVO toVO(Courier c) {
         CourierListVO vo = new CourierListVO();
         vo.setId(c.getId());
         vo.setCourierNo(c.getCourierNo());
@@ -135,8 +116,9 @@ public class AdminCourierServiceImpl implements AdminCourierService {
         vo.setPhone(c.getPhone());
         vo.setAvatarUrl(c.getAvatarUrl());
         vo.setStationId(c.getStationId());
+        vo.setStationName(c.getStationName());
         vo.setLevelName(c.getLevelName());
-        vo.setStatus(c.getStatus());
+        vo.setStatus(c.getStatus() != null ? c.getStatus() : 0);
         vo.setCreatedAt(c.getCreatedAt());
         return vo;
     }
