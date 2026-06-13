@@ -2,11 +2,13 @@ package com.xyj.xyjserver;
 
 import com.xyj.xyjserver.entity.Admin;
 import com.xyj.xyjserver.mapper.AdminMapper;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
+@Disabled("集成测试：需要可用的 MySQL 数据库")
 public class DbTest {
 
     @Autowired
